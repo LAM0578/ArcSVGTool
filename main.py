@@ -1,95 +1,96 @@
 import sys
 from svg2aff import svgPath2Aff, point
 from PyQt5.QtWidgets import (
-    QApplication, 
+    QApplication,
     QMainWindow,
-    QLabel, 
-    QLineEdit, 
-    QPushButton, 
+    QLabel,
+    QLineEdit,
+    QPushButton,
     QCheckBox,
     QTextEdit,
     QFileDialog,
     QMessageBox,
 )
 from PyQt5.QtGui import QIcon
-from PyQt5.QtCore import QFileInfo
+from PyQt5.QtCore import QFileInfo, Qt
 from qt_material import apply_stylesheet
+from BlurWindow.blurWindow import GlobalBlur
 
 # NCat 2023-12-14
 # pyinstaller --onefile --add-data "Icon.ico;." --icon="Icon.ico" --name="ArcSVGTool" "main.py"
     
 I18N_TEXTS = {
-    'title': 
+    'title':
     {
         'en': 'SVG Path to AFF',
-        'zh-Hans': 'SVG 路径转 AFF',
+        'zh-Hans': 'SVG 路径转 AFF'
     },
     'svgRaw':
     {
         'en': 'SVG Path Raw',
-        'zh-Hans': 'SVG 路径原始数据',
+        'zh-Hans': 'SVG 路径原始数据'
     },
-    'tick': 
+    'tick':
     {
         'en': 'Generate Tick',
-        'zh-Hans': '生成时间',
+        'zh-Hans': '生成时间'
     },
-    'offset': 
+    'offset':
     {
         'en': 'Result Offset',
-        'zh-Hans': '结果偏移',
+        'zh-Hans': '结果偏移'
     },
     'scale':
     {
         'en': 'Result Scale',
-        'zh-Hans': '结果缩放',
+        'zh-Hans': '结果缩放'
     },
     'scaleFirst':
     {
         'en': 'Scale First',
-        'zh-Hans': '缩放优先',
+        'zh-Hans': '缩放优先'
     },
     'curveCount':
     {
         'en': 'Curve Count',
-        'zh-Hans': '曲线数量',
+        'zh-Hans': '曲线数量'
     },
     'generateAndSave':
     {
         'en': 'Generate And Save',
-        'zh-Hans': '生成并保存',
+        'zh-Hans': '生成并保存'
     },
-    'error': 
+    'error':
     {
         'en': 'Error',
-        'zh-Hans': '错误',
+        'zh-Hans': '错误'
     },
-    'invalidInt': 
+    'invalidInt':
     {
         'en': 'invalid int value: {}\nat {}',
-        'zh-Hans': '无效的 int 值: {}\n位于 {}',
+        'zh-Hans': '无效的 int 值: {}\n位于 {}'
     },
-    'invalidFloat': 
+    'invalidFloat':
     {
         'en': 'invalid float value: {}\nat {}',
-        'zh-Hans': '无效的 float 值: {}\n位于 {}',
+        'zh-Hans': '无效的 float 值: {}\n位于 {}'
     },
-    'saveAs': 
+    'saveAs':
     {
         'en': 'Save As',
-        'zh-Hans': '储存为',
+        'zh-Hans': '储存为'
     },
-    'fileFilter' : 
+    'fileFilter' :
     {
         'en': 'All Files (*);;Arcaea Chart File (*.aff);;Text File (*.txt)',
-        'zh-Hans': '所有文件 (*);;Arcaea 谱面文件 (*.aff);;文本文件 (*.txt)',
+        'zh-Hans': '所有文件 (*);;Arcaea 谱面文件 (*.aff);;文本文件 (*.txt)'
     },
     'svgRawToolTip':
     {
         'en': 'Please use https://yqnn.github.io/svg-path-editor/ to format your SVG Path\r\nPlease do not use Minify output', 
-        'zh-Hans': '使用时请到 https://yqnn.github.io/svg-path-editor/ 格式化你的 SVG 路径\r\n请不要使用 Minify output 输出',
+        'zh-Hans': '使用时请到 https://yqnn.github.io/svg-path-editor/ 格式化你的 SVG 路径\r\n请不要使用 Minify output 输出'
     },
-    'scaleFirstToolTip': 
+    'scaleFirstToolTip':
     {
         'en': 'True: p * scale + offset\r\nFalse: (p + offset) * scale',
         'zh-Hans': '勾选后按照此公式进行缩放: p * scale + offset\r\n否则按照此公式进行缩放: (p + offset) * scale'
@@ -111,6 +112,10 @@ class mainWindow(QMainWindow):
 
         widthOffset = 45
         height = 25
+
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        hWnd = self.winId()
+        GlobalBlur(hWnd,Acrylic=True,Dark=True,QWidget=self)
 
         fileinfo = QFileInfo(__file__).absolutePath()
 
@@ -251,21 +256,21 @@ class mainWindow(QMainWindow):
             )
             offset = point(
                 self.__tryParseFloat(
-                    self.offsetXEdit.text(), 
+                    self.offsetXEdit.text(),
                     self.offsetLabel.text() + ' x'
                 ),
                 self.__tryParseFloat(
-                    self.offsetYEdit.text(), 
+                    self.offsetYEdit.text(),
                     self.offsetLabel.text() + ' y'
                 )
             )
             scale = point(
                 self.__tryParseFloat(
-                    self.scaleXEdit.text(), 
+                    self.scaleXEdit.text(),
                     self.scaleLabel.text() + ' x'
                 ),
                 self.__tryParseFloat(
-                    self.scaleYEdit.text(), 
+                    self.scaleYEdit.text(),
                     self.scaleLabel.text() + ' y'
                 )
             )
@@ -288,10 +293,10 @@ class mainWindow(QMainWindow):
 
             options = QFileDialog.Options()
             filePath, _ = QFileDialog.getSaveFileName(
-                self, 
-                I18N_TEXTS["saveAs"][LANG], 
-                "", 
-                I18N_TEXTS["fileFilter"][LANG], 
+                self,
+                I18N_TEXTS["saveAs"][LANG],
+                "",
+                I18N_TEXTS["fileFilter"][LANG],
                 options=options
             )
             
