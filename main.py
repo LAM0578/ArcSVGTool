@@ -1,8 +1,13 @@
 import sys
-from svg2aff import svgPath2Aff, point
+from svg2aff import (
+    svgPath2Aff,
+    svgPath2Lines,
+    point
+)
 from PyQt5.QtWidgets import (
     QApplication,
     QMainWindow,
+    QWidget,
     QLabel,
     QLineEdit,
     QPushButton,
@@ -11,14 +16,31 @@ from PyQt5.QtWidgets import (
     QFileDialog,
     QMessageBox,
 )
-from PyQt5.QtGui import QIcon
+from PyQt5.QtGui import (
+    QIcon,
+    QColor,
+    QPainter,
+    QPen,
+    QFont
+)
 from PyQt5.QtCore import QFileInfo, Qt
 from qt_material import apply_stylesheet
 from BlurWindow.blurWindow import GlobalBlur
 
-# NCat 2023-12-14
+# NCat 2023-12-23
 # pyinstaller --onefile --add-data "Icon.ico;." --icon="Icon.ico" --name="ArcSVGTool" "main.py"
-    
+
+STYLE_SHEET = '''
+* {
+    font-size: 20px;
+    font-family: "Microsoft YaHei", sans-serif;
+}
+QLineEdit, QTextEdit {
+    color: #f6f6f6;
+    font-family: "consolas", "Microsoft YaHei", monospace;
+}
+'''
+
 I18N_TEXTS = {
     'title':
     {
@@ -94,11 +116,221 @@ I18N_TEXTS = {
     {
         'en': 'True: p * scale + offset\r\nFalse: (p + offset) * scale',
         'zh-Hans': '勾选后按照此公式进行缩放: p * scale + offset\r\n否则按照此公式进行缩放: (p + offset) * scale'
+    },
+    'preview':
+    {
+        'en': 'Preview',
+        'zh-Hans': '预览'
+    },
+    'zeroPreviewSize':
+    {
+        'en': 'Preview Size is 0',
+        'zh-Hans': '预览尺寸为 0'
     }
 }
 
-LANG = 'zh-Hans'
-# LANG = 'en'
+LANG = 'en'
+
+def autoSetLang():
+    import sys
+    import ctypes
+    global LANG
+
+    if sys.platform == 'win32':
+        dll = ctypes.windll.kernel32
+        code = dll.GetUserDefaultUILanguage()
+        if (code == 0x804 or
+            code == 0xc04 or
+            code == 0x404):
+            LANG = 'zh-Hans'
+
+def applyBlur(window):
+    window.setAttribute(Qt.WA_TranslucentBackground)
+    hWnd = window.winId()
+    GlobalBlur(hWnd,Acrylic=True,Dark=True,QWidget=window)
+
+def applyIcon(window):
+    fileinfo = QFileInfo(__file__).absolutePath()
+    window.setWindowIcon(QIcon(fileinfo + '/Icon.ico'))
+
+class previewWindow(QWidget):
+    def __init__(self, lines):
+        super().__init__()
+
+        applyBlur(self)
+        applyIcon(self)
+
+        self.setWindowTitle(I18N_TEXTS["preview"][LANG])
+        self.setGeometry(900, 100, 800, 800)
+        self.setFixedSize(800, 800)
+
+        self.lines = lines
+        self.mnw = float('inf')
+        self.mnh = float('inf')
+        self.mxw = -float('inf')
+        self.mxh = -float('inf')
+        for line in lines:
+            p0 = line[0]
+            p1 = line[1]
+            # min
+            if p0.x < self.mnw:
+                self.mnw = p0.x
+            if p0.y < self.mnh:
+                self.mnh = p0.y
+            if p1.x < self.mnw:
+                self.mnw = p1.x
+            if p1.y < self.mnh:
+                self.mnh = p1.y
+            # max
+            if p0.x > self.mxw:
+                self.mxw = p0.x
+            if p0.y > self.mxh:
+                self.mxh = p0.y
+            if p1.x > self.mxw:
+                self.mxw = p1.x
+            if p1.y > self.mxh:
+                self.mxh = p1.y
+
+        mnw = self.mnw
+        mnh = self.mnh
+        mxw = self.mxw
+        mxh = self.mxh
+        
+        designSize = 800
+        border = 50
+        designSize -= border * 2
+        wdif = mxw - mnw
+        hdif = mxh - mnh
+        if wdif == 0 and hdif == 0:
+            raise Exception(I18N_TEXTS["zeroPreviewSize"][LANG])
+        scale = designSize / max(wdif, hdif / 2.)
+
+        self.designSize = designSize
+        self.border = border
+        self.scale = scale
+
+    def transPoint(self, p):
+        _p = (p - point(self.mnw, self.mnh)) * self.scale
+        _p *= point(1, .5)
+        _p = point(_p.x, self.designSize - _p.y)
+        return (_p + point(self.border)).toIntPoint()
+
+    def drawText(self, painter, pen, x, y, text):
+
+        pen.setColor(QColor(0, 0, 0, 200))
+        painter.setPen(pen)
+        painter.drawText(x + 2, y + 2, text)
+
+        pen.setColor(QColor(255, 255, 255, 255))
+        painter.setPen(pen)
+        painter.drawText(x, y, text)
+
+    def paintEvent(self, event):
+
+        painter = QPainter(self)
+        pen = QPen()
+
+        def drawText(x, y, text):
+            self.drawText(painter, pen,x, y, text)
+
+        def drawTextMultiLine(ofs, text: str):
+            lines = text.splitlines()
+            lines.reverse()
+            x = ofs
+            y = 800 - ofs
+            for line in lines:
+                drawText(x, y, line)
+                y -= ofs
+        
+        def setPenColor(r, g, b, a=255):
+            pen.setColor(QColor(r, g, b, a))
+            painter.setPen(pen)
+
+        def setPenWidth(w):
+            w = max(int(w), 4)
+            pen.setWidth(w)
+            painter.setPen(pen)
+
+        def drawYLines(y):
+            p0 = self.transPoint(point(0, y))
+            p0.x = 0
+            p1 = point(800, p0.y)
+            painter.drawLine(p0.x, p0.y, p1.x, p1.y)
+        
+        def drawXLines(x):
+            p0 = self.transPoint(point(x, 0))
+            p0.y = 0
+            p1 = point(p0.x, 800)
+            painter.drawLine(p0.x, p0.y, p1.x, p1.y)
+
+        def drawPointLines(ps):
+            ls = []
+            for i in range(len(ps) - 1):
+                p0 = self.transPoint(ps[i])
+                p1 = self.transPoint(ps[i + 1])
+                ls.append((p0, p1))
+            ls.append((
+                self.transPoint(ps[-1]),
+                self.transPoint(ps[0])
+            ))
+            for l in ls:
+                painter.drawLine(l[0].x, l[0].y, l[1].x, l[1].y)
+        
+        def lerp(a, b, t):
+            return a + (b - a) * t
+
+        setPenWidth(2)
+
+        # draw 0 / 1 lines (x & y)
+
+        setPenColor(255, 0, 0, 64) # y
+
+        drawYLines(0)
+        drawYLines(1)
+
+        setPenColor(0, 255, 0, 64) # x
+        
+        drawXLines(0)
+        drawXLines(1)
+
+        # draw ftr border
+
+        setPenColor(0xff, 0x4b, 0x0f, 175)
+
+        drawPointLines([
+            point(-.5, 0),
+            point(1.5, 0),
+            point(1, 1),
+            point(0, 1)
+        ])
+
+        setPenColor(0x91, 0x78, 0xaa, 200)
+        setPenWidth(.005 * self.scale)
+        
+        for line in self.lines:
+            p0 = self.transPoint(line[0])
+            p1 = self.transPoint(line[1])
+            
+            painter.drawLine(p0.x, p0.y, p1.x, p1.y)
+
+        setPenColor(0, 0, 0)
+    
+        painter.setFont(QFont("Consolas", 10))
+        
+        ofs = 25
+
+        drawTextMultiLine(
+            ofs,
+            '\n'.join([
+                f'min x: {self.mnw}',
+                f'min y: {self.mnh}',
+                '',
+                f'max x: {self.mxw}',
+                f'max y: {self.mxh}',
+                '',
+                f'cnt x: {lerp(self.mnw, self.mxw, .5)}',
+                f'cnt y: {lerp(self.mnh, self.mxh, .5)}',
+            ]))
 
 class mainWindow(QMainWindow):
     def __init__(self):
@@ -113,14 +345,10 @@ class mainWindow(QMainWindow):
         widthOffset = 45
         height = 25
 
-        self.setAttribute(Qt.WA_TranslucentBackground)
-        hWnd = self.winId()
-        GlobalBlur(hWnd,Acrylic=True,Dark=True,QWidget=self)
-
-        fileinfo = QFileInfo(__file__).absolutePath()
+        applyBlur(self)
+        applyIcon(self)
 
         self.setWindowTitle(I18N_TEXTS["title"][LANG])
-        self.setWindowIcon(QIcon(fileinfo + '/Icon.ico'))
         self.setGeometry(100, 100, 800, 600)
         self.setFixedSize(800, 600)
 
@@ -135,6 +363,7 @@ class mainWindow(QMainWindow):
         height += 45
 
         self.svgRawEdit = QTextEdit(self)
+        self.svgRawEdit.setAcceptRichText(False)
         self.svgRawEdit.move(50, height)
         self.svgRawEdit.resize(700, 135)
 
@@ -206,10 +435,18 @@ class mainWindow(QMainWindow):
         self.generateButton = QPushButton(self)
         self.generateButton.setText(I18N_TEXTS["generateAndSave"][LANG])
         self.generateButton.move(200 + widthOffset, height)
-        self.generateButton.resize(getButtonTextWidth(self.generateButton), 35)
+        generateButtonWidth = getButtonTextWidth(self.generateButton)
+        self.generateButton.resize(generateButtonWidth, 35)
         self.generateButton.clicked.connect(self.generate)
 
+        self.generateButton = QPushButton(self)
+        self.generateButton.setText(I18N_TEXTS["preview"][LANG])
+        self.generateButton.move(200 + widthOffset + generateButtonWidth + 30, height)
+        self.generateButton.resize(getButtonTextWidth(self.generateButton), 35)
+        self.generateButton.clicked.connect(self.openPreview)
+
         self.__setDefaultComponentValues()
+        # self.openPreview()
 
     def __setDefaultComponentValues(self):
         self.svgRawEdit.setText('M 0 0 l 1 0 l 0 1 l -1 0 Z')
@@ -220,6 +457,14 @@ class mainWindow(QMainWindow):
         self.scaleYEdit.setText('-2')
         self.scaleFirstCheckBox.setChecked(True)
         self.curveCountEdit.setText('7')
+
+    def messageBox(self, funcName, exc):
+        QMessageBox.critical(
+            self,
+            I18N_TEXTS["error"][LANG],
+            funcName + '\n\n' +
+            exc.__str__()
+        )
 
     @staticmethod
     def __tryParseInt(s, n):
@@ -244,11 +489,9 @@ class mainWindow(QMainWindow):
                     n
                 )
             )
-
-    def generate(self):
+        
+    def __parseConfig(self):
         try:
-            # parse arguments
-
             svgRaw = self.svgRawEdit.toPlainText()
             tick = self.__tryParseInt(
                 self.tickEdit.text(),
@@ -279,14 +522,16 @@ class mainWindow(QMainWindow):
                 self.curveCountEdit.text(),
                 self.curveCountLabel.text()
             )
+            return svgRaw, tick, offset, scale, scaleFirst, curveCount
+        except Exception as ex:
+            self.messageBox('mainWindow.__parseConfig', ex)
+            return
+
+    def generate(self):
+        try:
             
             affRaw = svgPath2Aff(
-                svgRaw,
-                tick,
-                offset,
-                scale,
-                scaleFirst,
-                curveCount
+                *self.__parseConfig()
             )
 
             # save aff file
@@ -305,24 +550,29 @@ class mainWindow(QMainWindow):
                 with open(outputPath, 'w') as f:
                     f.write(affRaw)
 
-        except ValueError as vex:
-            QMessageBox.critical(self, I18N_TEXTS["error"][LANG], vex.__str__())
+        except Exception as ex:
+            self.messageBox('mainWindow.generate', ex)
+            return
+        
+    def openPreview(self):
+        try:
+            config = self.__parseConfig()
+            lines = svgPath2Lines(config[0], *config[2:])
+            self.previewWin = previewWindow(lines)
+            self.previewWin.show()
+
+        except Exception as ex:
+            self.messageBox('mainWindow.openPreview', ex)
             return
 
 if __name__ == "__main__":
+    try:
+        autoSetLang()
+    except:
+        pass
     app = QApplication(sys.argv)
     window = mainWindow()
     apply_stylesheet(app, theme='default_dark.xml')
-    stylesheet = '''
-    * {
-        font-size: 20px;
-        font-family: "Microsoft YaHei", sans-serif;
-    }
-    QLineEdit, QTextEdit {
-        color: #f6f6f6;
-        font-family: "consolas", "Microsoft YaHei", monospace;
-    }
-    '''
-    window.setStyleSheet(stylesheet)
+    window.setStyleSheet(STYLE_SHEET)
     window.show()
-    sys.exit(app.exec_())
+    app.exec_()

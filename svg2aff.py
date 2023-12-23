@@ -29,9 +29,11 @@ def _pow2(x):
     return x ** 2.
 
 class point:
-    def __init__(self, x, y):
+    def __init__(self, x, y=None):
         self.x = x
         self.y = y
+        if y is None:
+            self.y = x
 
     def trans(self, offset, scale, scaleFirst):
         if scaleFirst:
@@ -73,6 +75,9 @@ class point:
             self.x = val
         elif idx == 1:
             self.y = val
+
+    def toIntPoint(self):
+        return point(int(self.x), int(self.y))
 
     def clone(self):
         return point(self.x, self.y)
@@ -533,6 +538,238 @@ class svgGroups:
                 ))
                 
         return '\n'.join(result)
+    
+    def svg2lines(self, offset, scale, scaleFirst, curveCount):
+        result = []
+        for group in self.__groups:
+            
+            hasZ = group[1]
+            group = group[0]
+            lastMovePosition = point(0, 0)
+            lastPosition = point(0, 0)
+            
+            for cmd in group:
+
+                if not isinstance(cmd, svgCommand):
+                    continue
+
+                cmdType = cmd.lowerCommandType
+                cmdIsAbs = cmd.isAbs
+                
+                if cmdType == 'm':
+                    position = point.fromArgs(*cmd.args)
+
+                    if cmdIsAbs:
+                        lastPosition = position.clone()
+                    else:
+                        lastPosition += position
+
+                    lastMovePosition = lastPosition
+                
+                elif cmdType == 'l':
+                    position = point.fromArgs(*cmd.args)
+
+                    targetPosition = lastPosition.clone()
+
+                    if cmdIsAbs:
+                        targetPosition = position.clone()
+                    else:
+                        targetPosition += position
+                    
+                    result.append((
+                        lastPosition.trans(offset, scale, scaleFirst), 
+                        targetPosition.trans(offset, scale, scaleFirst)
+                    ))
+
+                    lastPosition = targetPosition
+
+                elif cmdType == 'v':
+                    position = point(0, cmd.args[0])
+
+                    targetPosition = lastPosition.clone()
+
+                    if cmdIsAbs:
+                        targetPosition.y = position.y
+                    else:
+                        targetPosition.y += position.y
+                    
+                    result.append((
+                        lastPosition.trans(offset, scale, scaleFirst), 
+                        targetPosition.trans(offset, scale, scaleFirst)
+                    ))
+
+                    lastPosition = targetPosition
+
+                elif cmdType == 'h':
+                    position = point(cmd.args[0], 0)
+
+                    targetPosition = lastPosition.clone()
+
+                    if cmdIsAbs:
+                        targetPosition.x = position.x
+                    else:
+                        targetPosition.x += position.x
+                    
+                    result.append((
+                        lastPosition.trans(offset, scale, scaleFirst), 
+                        targetPosition.trans(offset, scale, scaleFirst)
+                    ))
+
+                    lastPosition = targetPosition
+
+                elif cmdType == 'q':
+                    cp0 = lastPosition.clone()
+                    cp1 = point(cmd.args[0], cmd.args[1])
+                    cp2 = point(cmd.args[2], cmd.args[3])
+
+                    if not cmdIsAbs:
+                        cp1 += lastPosition
+                        cp2 += lastPosition
+
+                    lastCurvePosition = lastPosition
+                    for i in range(curveCount):
+                        p = i / (curveCount - 1.)
+                        position = self.__quadBezierCurvesPoint(
+                            cp0,
+                            cp1,
+                            cp2,
+                            p
+                        )
+                        result.append((
+                            lastCurvePosition.trans(offset, scale, scaleFirst), 
+                            position.trans(offset, scale, scaleFirst)
+                        ))
+                        lastCurvePosition = position
+
+                    lastPosition = lastCurvePosition
+
+                elif cmdType == 'c':
+                    cp0 = lastPosition.clone()
+                    cp1 = point(cmd.args[0], cmd.args[1])
+                    cp2 = point(cmd.args[2], cmd.args[3])
+                    cp3 = point(cmd.args[4], cmd.args[5])
+
+                    if not cmdIsAbs:
+                        cp1 += lastPosition
+                        cp2 += lastPosition
+                        cp3 += lastPosition
+
+                    lastCurvePosition = lastPosition
+                    for i in range(curveCount):
+                        p = i / (curveCount - 1.)
+                        position = self.__cubicBezierCurvesPoint(
+                            cp0,
+                            cp1,
+                            cp2,
+                            cp3,
+                            p
+                        )
+                        result.append((
+                            lastCurvePosition.trans(offset, scale, scaleFirst), 
+                            position.trans(offset, scale, scaleFirst)
+                        ))
+                        lastCurvePosition = position
+
+                    lastPosition = lastCurvePosition
+
+                elif cmdType == 't':
+                    cp0 = lastPosition.clone()
+                    cp1 = lastPosition.clone()
+                    cp2 = point(cmd.args[0], cmd.args[1])
+
+                    if not cmdIsAbs:
+                        cp1 += lastPosition
+                        cp2 += lastPosition
+
+                    lastCurvePosition = lastPosition
+                    for i in range(curveCount):
+                        p = i / (curveCount - 1.)
+                        position = self.__quadBezierCurvesPoint(
+                            cp0,
+                            cp1,
+                            cp2,
+                            p
+                        )
+                        result.append((
+                            lastCurvePosition.trans(offset, scale, scaleFirst), 
+                            position.trans(offset, scale, scaleFirst)
+                        ))
+                        lastCurvePosition = position
+
+                    lastPosition = lastCurvePosition
+
+                elif cmdType == 's':
+                    cp0 = lastPosition.clone()
+                    cp1 = lastPosition.clone()
+                    cp2 = point(cmd.args[0], cmd.args[1])
+                    cp3 = point(cmd.args[2], cmd.args[3])
+
+                    if not cmdIsAbs:
+                        cp2 += lastPosition
+                        cp3 += lastPosition
+
+                    lastCurvePosition = lastPosition
+                    for i in range(curveCount):
+                        p = i / (curveCount - 1.)
+                        position = self.__cubicBezierCurvesPoint(
+                            cp0,
+                            cp1,
+                            cp2,
+                            cp3,
+                            p
+                        )
+                        result.append((
+                            lastCurvePosition.trans(offset, scale, scaleFirst), 
+                            position.trans(offset, scale, scaleFirst)
+                        ))
+                        lastCurvePosition = position
+
+                    lastPosition = lastCurvePosition
+
+                elif cmdType == 'a':
+                    p0 = lastPosition.clone()
+
+                    (rx,
+                    ry,
+                    xAxisRotation,
+                    largeArcFlag,
+                    sweepFlag,
+                    p1x,
+                    p1y) = cmd.args
+
+                    p1 = point(p1x, p1y)
+
+                    if not cmd.isAbs:
+                        p1 += lastPosition
+                    
+                    lastCurvePosition = lastPosition
+                    for i in range(curveCount):
+                        p = i / (curveCount - 1.)
+                        position = svgGroups.__ellipticalArc(
+                            p0,
+                            rx,
+                            ry,
+                            xAxisRotation,
+                            largeArcFlag,
+                            sweepFlag,
+                            p1,
+                            p
+                        )
+                        result.append((
+                            lastCurvePosition.trans(offset, scale, scaleFirst), 
+                            position.trans(offset, scale, scaleFirst)
+                        ))
+                        lastCurvePosition = position
+
+                    lastPosition = lastCurvePosition
+
+            if hasZ:
+                result.append((
+                    lastPosition.trans(offset, scale, scaleFirst), 
+                    lastMovePosition.trans(offset, scale, scaleFirst)
+                ))
+            
+        return result
 
 def parseCommands(raw: str):
 
@@ -617,6 +854,34 @@ def svgPath2Aff(raw, tick, offset, scale, scaleFirst, curveCount):
     
     groups = svgGroups(groups)
     return groups.svg2aff(tick, offset, scale, scaleFirst, curveCount)
+
+def svgPath2Lines(raw, offset, scale, scaleFirst, curveCount):
+
+    commands = parseCommands(raw)
+    parsedCommands = []
+
+    for cmd in commands:
+        parsedCommands.append(svgCommand.parseCommand(cmd))
+
+    groups = []
+    lastGroup = []
+    hasZ = False
+
+    for cmd in parsedCommands:
+
+        if cmd.lowerCommandType == 'z':
+            hasZ = True
+            groups.append((lastGroup, hasZ))
+            lastGroup = []
+            hasZ = False
+
+        lastGroup.append(cmd)
+
+    if lastGroup != []:
+        groups.append((lastGroup, hasZ))
+    
+    groups = svgGroups(groups)
+    return groups.svg2lines(offset, scale, scaleFirst, curveCount)
 
 
 def __main(*args):
