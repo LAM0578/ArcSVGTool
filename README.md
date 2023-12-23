@@ -8,7 +8,11 @@
 
 ## 注意事项
 
-如果你只想要 SVG 路径转换黑线的方法那可以直接使用 svg2aff.py  
+__本项目只在 Python 3.12.0 测试过，其他版本的 Python 请自行测试__
+
+---
+
+如果你只想要 SVG 路径转换黑线的方法那可以直接使用 [`svg2aff.py`](https://github.com/LAM0578/ArcSVGTool/blob/main/svg2aff.py)  
 如果你需要图形化界面那么有以下几个依赖包：
 - [PyQt5](https://pypi.org/project/PyQt5/)
     - 用于可视化界面界面
@@ -16,6 +20,10 @@
     - 用于界面主题
 - [BlurWindow](https://pypi.org/project/BlurWindow/)
     - 用于毛玻璃窗体效果
+
+---
+
+如果您觉得上面的方法比较麻烦可以到 [`release`](https://github.com/LAM0578/ArcSVGTool/releases) 查看并下载
 
 ## 更新日志
 
