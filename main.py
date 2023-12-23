@@ -28,7 +28,7 @@ from qt_material import apply_stylesheet
 from BlurWindow.blurWindow import GlobalBlur
 
 # NCat 2023-12-23
-# pyinstaller --onefile --add-data "Icon.ico;." --icon="Icon.ico" --name="ArcSVGTool" "main.py"
+# pyinstaller --noconsole --onefile --add-data "Icon.ico;." --icon="Icon.ico" --name="ArcSVGTool" "main.py"
 
 STYLE_SHEET = '''
 * {
@@ -340,7 +340,7 @@ class mainWindow(QMainWindow):
             text = btn.text()
             fontMetrics = btn.fontMetrics()
             fontMetrics.horizontalAdvance(text)
-            return fontMetrics.width(text) * 2
+            return fontMetrics.width(text) + 50
 
         widthOffset = 45
         height = 25
