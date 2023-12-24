@@ -27,17 +27,22 @@ from PyQt5.QtCore import QFileInfo, Qt
 from qt_material import apply_stylesheet
 from BlurWindow.blurWindow import GlobalBlur
 
-# NCat 2023-12-23
+# NCat 2023-12-24
 # pyinstaller --noconsole --onefile --add-data "Icon.ico;." --icon="Icon.ico" --name="ArcSVGTool" "main.py"
 
 STYLE_SHEET = '''
 * {
-    font-size: 20px;
+    font-size: {fontSize}px;
     font-family: "Microsoft YaHei", sans-serif;
+    text-transform: none;
 }
 QLineEdit, QTextEdit {
     color: #f6f6f6;
     font-family: "consolas", "Microsoft YaHei", monospace;
+}
+QPushButton {
+    padding-left: {padding}px;
+    padding-right: {padding}px;
 }
 '''
 
@@ -46,6 +51,10 @@ I18N_TEXTS = {
     {
         'en': 'SVG Path to AFF',
         'zh-Hans': 'SVG 路径转 AFF'
+    },
+    'affPreview': {
+        'en': 'AFF Preview',
+        'zh-Hans': 'AFF 预览',
     },
     'svgRaw':
     {
@@ -129,6 +138,32 @@ I18N_TEXTS = {
     }
 }
 
+DESIGN_SIZE = point(2560, 1600)
+SCREEN_SCALE = 1
+
+def calcScale():
+    global SCREEN_SCALE
+    import pyautogui
+    scrWidth, scrHeight = pyautogui.size()
+    widthScale = scrWidth / DESIGN_SIZE.x
+    heightScale = scrHeight / DESIGN_SIZE.y
+    SCREEN_SCALE = min(widthScale, heightScale)
+    # print(scrWidth, scrHeight, SCREEN_SCALE)
+
+def fixScale(x):
+    return int(x * SCREEN_SCALE)
+
+def fixScales(*n):
+    return list(map(fixScale, n))
+
+def isVscode():
+    try:
+        if sys.ps1:
+            return True
+        return False
+    except:
+        return False
+
 LANG = 'en'
 
 def autoSetLang():
@@ -161,8 +196,8 @@ class previewWindow(QWidget):
         applyIcon(self)
 
         self.setWindowTitle(I18N_TEXTS["preview"][LANG])
-        self.setGeometry(900, 100, 800, 800)
-        self.setFixedSize(800, 800)
+        self.setGeometry(*fixScales(900, 100, 800, 800))
+        self.setFixedSize(*fixScales(800, 800))
 
         self.lines = lines
         self.mnw = float('inf')
@@ -205,6 +240,7 @@ class previewWindow(QWidget):
             raise Exception(I18N_TEXTS["zeroPreviewSize"][LANG])
         scale = designSize / max(wdif, hdif / 2.)
 
+        self.windowSize = int(800 * SCREEN_SCALE)
         self.designSize = designSize
         self.border = border
         self.scale = scale
@@ -213,7 +249,7 @@ class previewWindow(QWidget):
         _p = (p - point(self.mnw, self.mnh)) * self.scale
         _p *= point(1, .5)
         _p = point(_p.x, self.designSize - _p.y)
-        return (_p + point(self.border)).toIntPoint()
+        return ((_p + point(self.border)) * SCREEN_SCALE).toIntPoint()
 
     def drawText(self, painter, pen, x, y, text):
 
@@ -237,7 +273,7 @@ class previewWindow(QWidget):
             lines = text.splitlines()
             lines.reverse()
             x = ofs
-            y = 800 - ofs
+            y = self.windowSize - ofs
             for line in lines:
                 drawText(x, y, line)
                 y -= ofs
@@ -246,21 +282,21 @@ class previewWindow(QWidget):
             pen.setColor(QColor(r, g, b, a))
             painter.setPen(pen)
 
-        def setPenWidth(w):
-            w = max(int(w), 4)
+        def setPenWidth(w, mx=1):
+            w = max(fixScale(int(w)), mx)
             pen.setWidth(w)
             painter.setPen(pen)
 
         def drawYLines(y):
             p0 = self.transPoint(point(0, y))
             p0.x = 0
-            p1 = point(800, p0.y)
+            p1 = point(self.windowSize, p0.y)
             painter.drawLine(p0.x, p0.y, p1.x, p1.y)
         
         def drawXLines(x):
             p0 = self.transPoint(point(x, 0))
             p0.y = 0
-            p1 = point(p0.x, 800)
+            p1 = point(p0.x, self.windowSize)
             painter.drawLine(p0.x, p0.y, p1.x, p1.y)
 
         def drawPointLines(ps):
@@ -305,7 +341,7 @@ class previewWindow(QWidget):
         ])
 
         setPenColor(0x91, 0x78, 0xaa, 200)
-        setPenWidth(.005 * self.scale)
+        setPenWidth(.005 * self.scale, 4)
         
         for line in self.lines:
             p0 = self.transPoint(line[0])
@@ -315,9 +351,9 @@ class previewWindow(QWidget):
 
         setPenColor(0, 0, 0)
     
-        painter.setFont(QFont("Consolas", 10))
+        painter.setFont(QFont("Consolas", int(10 * SCREEN_SCALE)))
         
-        ofs = 25
+        ofs = int(25 * SCREEN_SCALE)
 
         drawTextMultiLine(
             ofs,
@@ -331,16 +367,25 @@ class previewWindow(QWidget):
                 f'cnt x: {lerp(self.mnw, self.mxw, .5)}',
                 f'cnt y: {lerp(self.mnh, self.mxh, .5)}',
             ]))
+        
+class previewAffWindow(QWidget):
+    def __init__(self, content):
+        super().__init__()
+
+        applyBlur(self)
+        applyIcon(self)
+
+        self.setWindowTitle(I18N_TEXTS["affPreview"][LANG])
+        self.setGeometry(*fixScales(900, 100, 800, 600))
+        self.setFixedSize(*fixScales(800, 800))
+        
+        self.affRawEdit = mainWindow._mainWindow__createTextEdit(
+            self, 25, 25, 750, 750)
+        self.affRawEdit.setText(content)
 
 class mainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-
-        def getButtonTextWidth(btn: QPushButton):
-            text = btn.text()
-            fontMetrics = btn.fontMetrics()
-            fontMetrics.horizontalAdvance(text)
-            return fontMetrics.width(text) + 50
 
         widthOffset = 45
         height = 25
@@ -349,105 +394,113 @@ class mainWindow(QMainWindow):
         applyIcon(self)
 
         self.setWindowTitle(I18N_TEXTS["title"][LANG])
-        self.setGeometry(100, 100, 800, 600)
-        self.setFixedSize(800, 600)
+        self.setGeometry(*fixScales(100, 100, 800, 600))
+        self.setFixedSize(*fixScales(800, 600))
 
         # create components
 
-        self.svgRawLabel = QLabel(self)
-        self.svgRawLabel.setText(I18N_TEXTS["svgRaw"][LANG])
-        self.svgRawLabel.move(50, height)
-        self.svgRawLabel.resize(1000, 35)
-        self.svgRawLabel.setToolTip(I18N_TEXTS["svgRawToolTip"][LANG])
+        self.svgRawLabel = self.__createLabel(
+            I18N_TEXTS["svgRaw"][LANG], 50, height, I18N_TEXTS["svgRawToolTip"][LANG])
 
         height += 45
 
-        self.svgRawEdit = QTextEdit(self)
-        self.svgRawEdit.setAcceptRichText(False)
-        self.svgRawEdit.move(50, height)
-        self.svgRawEdit.resize(700, 135)
+        self.svgRawEdit = self.__createTextEdit(50, height, 700, 135)
 
         height += 170
 
-        self.tickLabel = QLabel(self)
-        self.tickLabel.setText(I18N_TEXTS["tick"][LANG])
-        self.tickLabel.move(50, height)
-        self.tickLabel.resize(1000, 35)
-
-        self.tickEdit = QLineEdit(self)
-        self.tickEdit.move(200 + widthOffset, height)
-        self.tickEdit.resize(100, 35)
+        self.tickLabel = self.__createLabel(
+            I18N_TEXTS["tick"][LANG], 50, height)
+        self.tickEdit = self.__createLineEdit(200 + widthOffset, height)
 
         height += 50
 
-        self.offsetLabel = QLabel(self)
-        self.offsetLabel.setText(I18N_TEXTS["offset"][LANG])
-        self.offsetLabel.move(50, height)
-        self.offsetLabel.resize(1000, 35)
+        self.offsetLabel = self.__createLabel(
+            I18N_TEXTS["offset"][LANG], 50, height)
 
-        self.offsetXEdit = QLineEdit(self)
-        self.offsetXEdit.move(200 + widthOffset, height)
-        self.offsetXEdit.resize(100, 35)
-
-        self.offsetYEdit = QLineEdit(self)
-        self.offsetYEdit.move(325 + widthOffset, height)
-        self.offsetYEdit.resize(100, 35)
+        self.offsetXEdit = self.__createLineEdit(200 + widthOffset, height)
+        self.offsetYEdit = self.__createLineEdit(325 + widthOffset, height)
 
         height += 50
 
-        self.scaleLabel = QLabel(self)
-        self.scaleLabel.setText(I18N_TEXTS["scale"][LANG])
-        self.scaleLabel.move(50, height)
-        self.scaleLabel.resize(1000, 35)
+        self.scaleLabel = self.__createLabel(
+            I18N_TEXTS["scale"][LANG], 50, height)
 
-        self.scaleXEdit = QLineEdit(self)
-        self.scaleXEdit.move(200 + widthOffset, height)
-        self.scaleXEdit.resize(100, 35)
-
-        self.scaleYEdit = QLineEdit(self)
-        self.scaleYEdit.move(325 + widthOffset, height)
-        self.scaleYEdit.resize(100, 35)
+        self.scaleXEdit = self.__createLineEdit(200 + widthOffset, height)
+        self.scaleYEdit = self.__createLineEdit(325 + widthOffset, height)
 
         height += 50
 
-        self.scaleFirstLabel = QLabel(self)
-        self.scaleFirstLabel.setText(I18N_TEXTS["scaleFirst"][LANG])
-        self.scaleFirstLabel.move(50, height)
-        self.scaleFirstLabel.resize(1000, 35)
-        self.scaleFirstLabel.setToolTip(I18N_TEXTS["scaleFirstToolTip"][LANG])
-
-        self.scaleFirstCheckBox = QCheckBox(self)
-        self.scaleFirstCheckBox.move(200 + widthOffset, height)
+        self.scaleFirstLabel = self.__createLabel(
+            I18N_TEXTS["scaleFirst"][LANG], 50, height, I18N_TEXTS["scaleFirstToolTip"][LANG])
+        self.scaleFirstCheckBox = self.__createCheckBox(200 + widthOffset, height)
 
         height += 50
 
-        self.curveCountLabel = QLabel(self)
-        self.curveCountLabel.setText(I18N_TEXTS["curveCount"][LANG])
-        self.curveCountLabel.move(50, height)
-        self.curveCountLabel.resize(1000, 35)
-
-        self.curveCountEdit = QLineEdit(self)
-        self.curveCountEdit.move(200 + widthOffset, height)
-        self.curveCountEdit.resize(100, 35)
+        self.curveCountLabel = self.__createLabel(I18N_TEXTS["curveCount"][LANG], 50, height)
+        self.curveCountEdit = self.__createLineEdit(200 + widthOffset, height)
 
         height += 70
 
-        self.generateButton = QPushButton(self)
-        self.generateButton.setText(I18N_TEXTS["generateAndSave"][LANG])
-        self.generateButton.move(200 + widthOffset, height)
-        generateButtonWidth = getButtonTextWidth(self.generateButton)
-        self.generateButton.resize(generateButtonWidth, 35)
-        self.generateButton.clicked.connect(self.generate)
+        self.generateButton = self.__createButton(
+            I18N_TEXTS["generateAndSave"][LANG],
+            50,
+            height,
+            self.generate)
+        
+        width = self.generateButton.width() / SCREEN_SCALE
 
-        self.generateButton = QPushButton(self)
-        self.generateButton.setText(I18N_TEXTS["preview"][LANG])
-        self.generateButton.move(200 + widthOffset + generateButtonWidth + 30, height)
-        self.generateButton.resize(getButtonTextWidth(self.generateButton), 35)
-        self.generateButton.clicked.connect(self.openPreview)
+        self.previewButton = self.__createButton(
+            I18N_TEXTS["preview"][LANG],
+            50 + width + 30,
+            height,
+            self.openPreview)
+        
+        width += self.previewButton.width() / SCREEN_SCALE
+
+        self.previewAffButton = self.__createButton(
+            I18N_TEXTS["affPreview"][LANG],
+            50 + width + 60,
+            height,
+            self.openAffPreview)
 
         self.__setDefaultComponentValues()
-        # self.openPreview()
+    
+    def __createLabel(self, content, x, y, tooltip=None):
+        label = QLabel(self)
+        label.setText(content)
+        label.move(*fixScales(x, y))
+        label.resize(*fixScales(1000, 35))
+        if tooltip is not None:
+            label.setToolTip(tooltip)
+        return label
 
+    def __createLineEdit(self, x, y):
+        lineEdit = QLineEdit(self)
+        lineEdit.move(*fixScales(x, y))
+        lineEdit.resize(*fixScales(100, 35))
+        return lineEdit
+    
+    def __createCheckBox(self, x, y):
+        checkBox = QCheckBox(self)
+        checkBox.move(*fixScales(x, y))
+        return checkBox
+    
+    def __createTextEdit(self, x, y, width, height):
+        textEdit = QTextEdit(self)
+        textEdit.setAcceptRichText(False)
+        textEdit.move(*fixScales(x, y))
+        textEdit.resize(*fixScales(width, height))
+        return textEdit
+    
+    def __createButton(self, text, x, y, onClicked):
+        button = QPushButton(self)
+        button.setText(text)
+        button.move(*fixScales(x, y))
+        button.adjustSize()
+        button.resize(*fixScales(button.width() + 50, 35))
+        button.clicked.connect(onClicked)
+        return button
+    
     def __setDefaultComponentValues(self):
         self.svgRawEdit.setText('M 0 0 l 1 0 l 0 1 l -1 0 Z')
         self.tickEdit.setText('0')
@@ -459,6 +512,8 @@ class mainWindow(QMainWindow):
         self.curveCountEdit.setText('7')
 
     def messageBox(self, funcName, exc):
+        if isVscode():
+            raise exc
         QMessageBox.critical(
             self,
             I18N_TEXTS["error"][LANG],
@@ -554,6 +609,19 @@ class mainWindow(QMainWindow):
             self.messageBox('mainWindow.generate', ex)
             return
         
+    def openAffPreview(self):
+        try:
+            affRaw = svgPath2Aff(
+                *self.__parseConfig()
+            )
+            self.previewAffWin = previewAffWindow(affRaw)
+            self.previewAffWin.setStyleSheet(self.styleSheet())
+            self.previewAffWin.show()
+
+        except Exception as ex:
+            self.messageBox('mainWindow.openAffPreview', ex)
+            return
+        
     def openPreview(self):
         try:
             config = self.__parseConfig()
@@ -570,9 +638,15 @@ if __name__ == "__main__":
         autoSetLang()
     except:
         pass
+    calcScale()
     app = QApplication(sys.argv)
     window = mainWindow()
     apply_stylesheet(app, theme='default_dark.xml')
-    window.setStyleSheet(STYLE_SHEET)
+    styleSheet = (
+        STYLE_SHEET
+        .replace('{fontSize}', str(fixScale(20)))
+        .replace('{padding}', str(fixScale(-100)))
+    )
+    window.setStyleSheet(styleSheet)
     window.show()
     app.exec_()

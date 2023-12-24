@@ -4,3 +4,4 @@ dist/*
 ArcSVGTool.spec
 output.aff
 previewTest/*
+test/*
