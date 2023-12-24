@@ -4,7 +4,7 @@
 
 本项目是一个用于将 SVG 路径转换为黑线的工具  
 方便谱师在写谱时可以做一些黑线艺术  
-可在[此视频](https://www.bilibili.com/video/BV1Uz4y1c7hw/)查看使用效果
+可在[`此视频`](https://www.bilibili.com/video/BV1Uz4y1c7hw/)查看使用效果
 
 ## 注意事项
 
@@ -12,15 +12,19 @@ __本项目只在 Python 3.12.0 测试过，其他版本的 Python 请自行测�
 
 ---
 
+本项目发布的 exe 程序是由 [`pyinstaller`](https://pypi.org/project/pyinstaller/) 打包的
+
+---
+
 如果你只想要 SVG 路径转换黑线的方法那可以直接使用 [`svg2aff.py`](https://github.com/LAM0578/ArcSVGTool/blob/main/svg2aff.py)  
-如果你需要图形化界面那么有以下几个依赖包：
-- [PyQt5](https://pypi.org/project/PyQt5/)
+如果你需要图形化界面需要安装以下几个依赖包：
+- [`PyQt5`](https://pypi.org/project/PyQt5/)
     - 用于可视化界面界面
-- [qt_material](https://pypi.org/project/qt_material/)
+- [`qt_material`](https://pypi.org/project/qt_material/)
     - 用于界面主题
-- [BlurWindow](https://pypi.org/project/BlurWindow/)
+- [`BlurWindow`](https://pypi.org/project/BlurWindow/)
     - 用于毛玻璃窗体效果
-- [pyautogui](https://pypi.org/project/pyautogui/)
+- [`pyautogui`](https://pypi.org/project/pyautogui/)
     - 用于获取屏幕大小计算自适应缩放
 
 ---
@@ -51,3 +55,8 @@ __本项目只在 Python 3.12.0 测试过，其他版本的 Python 请自行测�
 - 增加自适应功能
     - 根据屏幕大小和设计大小 `2560x1600` 计算缩放
 - 增加 AFF 预览功能
+
+### 2023 / 12 / 24 - 修复问题以及增加限制曲线数量
+- 将尺寸数量限制在了 128 以内
+- 修复了弹窗没有 OK 按钮的问题
+- 修复了曲线数量为 1 的情况下会有 `ZeroDivisionError` 的问题

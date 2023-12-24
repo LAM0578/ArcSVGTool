@@ -40,7 +40,7 @@ QLineEdit, QTextEdit {
     color: #f6f6f6;
     font-family: "consolas", "Microsoft YaHei", monospace;
 }
-QPushButton {
+QPushButton#mainWindowButton {
     padding-left: {padding}px;
     padding-right: {padding}px;
 }
@@ -135,6 +135,11 @@ I18N_TEXTS = {
     {
         'en': 'Preview Size is 0',
         'zh-Hans': '预览尺寸为 0'
+    },
+    'invalidCurveCount':
+    {
+        'en': 'Curve Count is too large',
+        'zh-Hans': '曲线数量过大'
     }
 }
 
@@ -499,6 +504,7 @@ class mainWindow(QMainWindow):
         button.adjustSize()
         button.resize(*fixScales(button.width() + 50, 35))
         button.clicked.connect(onClicked)
+        button.setObjectName('mainWindowButton')
         return button
     
     def __setDefaultComponentValues(self):
@@ -546,41 +552,39 @@ class mainWindow(QMainWindow):
             )
         
     def __parseConfig(self):
-        try:
-            svgRaw = self.svgRawEdit.toPlainText()
-            tick = self.__tryParseInt(
-                self.tickEdit.text(),
-                self.tickLabel.text()
+        svgRaw = self.svgRawEdit.toPlainText()
+        tick = self.__tryParseInt(
+            self.tickEdit.text(),
+            self.tickLabel.text()
+        )
+        offset = point(
+            self.__tryParseFloat(
+                self.offsetXEdit.text(),
+                self.offsetLabel.text() + ' x'
+            ),
+            self.__tryParseFloat(
+                self.offsetYEdit.text(),
+                self.offsetLabel.text() + ' y'
             )
-            offset = point(
-                self.__tryParseFloat(
-                    self.offsetXEdit.text(),
-                    self.offsetLabel.text() + ' x'
-                ),
-                self.__tryParseFloat(
-                    self.offsetYEdit.text(),
-                    self.offsetLabel.text() + ' y'
-                )
+        )
+        scale = point(
+            self.__tryParseFloat(
+                self.scaleXEdit.text(),
+                self.scaleLabel.text() + ' x'
+            ),
+            self.__tryParseFloat(
+                self.scaleYEdit.text(),
+                self.scaleLabel.text() + ' y'
             )
-            scale = point(
-                self.__tryParseFloat(
-                    self.scaleXEdit.text(),
-                    self.scaleLabel.text() + ' x'
-                ),
-                self.__tryParseFloat(
-                    self.scaleYEdit.text(),
-                    self.scaleLabel.text() + ' y'
-                )
-            )
-            scaleFirst = self.scaleFirstCheckBox.isChecked()
-            curveCount = self.__tryParseInt(
-                self.curveCountEdit.text(),
-                self.curveCountLabel.text()
-            )
-            return svgRaw, tick, offset, scale, scaleFirst, curveCount
-        except Exception as ex:
-            self.messageBox('mainWindow.__parseConfig', ex)
-            return
+        )
+        scaleFirst = self.scaleFirstCheckBox.isChecked()
+        curveCount = self.__tryParseInt(
+            self.curveCountEdit.text(),
+            self.curveCountLabel.text()
+        )
+        if curveCount > 128:
+            raise OverflowError(I18N_TEXTS['invalidCurveCount'][LANG])
+        return svgRaw, tick, offset, scale, scaleFirst, curveCount
 
     def generate(self):
         try:
@@ -645,7 +649,7 @@ if __name__ == "__main__":
     styleSheet = (
         STYLE_SHEET
         .replace('{fontSize}', str(fixScale(20)))
-        .replace('{padding}', str(fixScale(-100)))
+        .replace('{padding}', str(fixScale(-50)))
     )
     window.setStyleSheet(styleSheet)
     window.show()

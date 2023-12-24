@@ -390,7 +390,10 @@ class svgGroups:
 
                     lastCurvePosition = lastPosition
                     for i in range(curveCount):
-                        p = i / (curveCount - 1.)
+                        if curveCount <= 1:
+                            p = 0
+                        else:
+                            p = i / (curveCount - 1.)
                         position = self.__quadBezierCurvesPoint(
                             cp0,
                             cp1,
@@ -419,7 +422,10 @@ class svgGroups:
 
                     lastCurvePosition = lastPosition
                     for i in range(curveCount):
-                        p = i / (curveCount - 1.)
+                        if curveCount <= 1:
+                            p = 0
+                        else:
+                            p = i / (curveCount - 1.)
                         position = self.__cubicBezierCurvesPoint(
                             cp0,
                             cp1,
@@ -447,7 +453,10 @@ class svgGroups:
 
                     lastCurvePosition = lastPosition
                     for i in range(curveCount):
-                        p = i / (curveCount - 1.)
+                        if curveCount <= 1:
+                            p = 0
+                        else:
+                            p = i / (curveCount - 1.)
                         position = self.__quadBezierCurvesPoint(
                             cp0,
                             cp1,
@@ -475,7 +484,10 @@ class svgGroups:
 
                     lastCurvePosition = lastPosition
                     for i in range(curveCount):
-                        p = i / (curveCount - 1.)
+                        if curveCount <= 1:
+                            p = 0
+                        else:
+                            p = i / (curveCount - 1.)
                         position = self.__cubicBezierCurvesPoint(
                             cp0,
                             cp1,
@@ -510,7 +522,10 @@ class svgGroups:
                     
                     lastCurvePosition = lastPosition
                     for i in range(curveCount):
-                        p = i / (curveCount - 1.)
+                        if curveCount <= 1:
+                            p = 0
+                        else:
+                            p = i / (curveCount - 1.)
                         position = svgGroups.__ellipticalArc(
                             p0,
                             rx,
@@ -628,7 +643,10 @@ class svgGroups:
 
                     lastCurvePosition = lastPosition
                     for i in range(curveCount):
-                        p = i / (curveCount - 1.)
+                        if curveCount <= 1:
+                            p = 0
+                        else:
+                            p = i / (curveCount - 1.)
                         position = self.__quadBezierCurvesPoint(
                             cp0,
                             cp1,
@@ -656,7 +674,10 @@ class svgGroups:
 
                     lastCurvePosition = lastPosition
                     for i in range(curveCount):
-                        p = i / (curveCount - 1.)
+                        if curveCount <= 1:
+                            p = 0
+                        else:
+                            p = i / (curveCount - 1.)
                         position = self.__cubicBezierCurvesPoint(
                             cp0,
                             cp1,
@@ -683,7 +704,10 @@ class svgGroups:
 
                     lastCurvePosition = lastPosition
                     for i in range(curveCount):
-                        p = i / (curveCount - 1.)
+                        if curveCount <= 1:
+                            p = 0
+                        else:
+                            p = i / (curveCount - 1.)
                         position = self.__quadBezierCurvesPoint(
                             cp0,
                             cp1,
@@ -710,7 +734,10 @@ class svgGroups:
 
                     lastCurvePosition = lastPosition
                     for i in range(curveCount):
-                        p = i / (curveCount - 1.)
+                        if curveCount <= 1:
+                            p = 0
+                        else:
+                            p = i / (curveCount - 1.)
                         position = self.__cubicBezierCurvesPoint(
                             cp0,
                             cp1,
@@ -744,7 +771,10 @@ class svgGroups:
                     
                     lastCurvePosition = lastPosition
                     for i in range(curveCount):
-                        p = i / (curveCount - 1.)
+                        if curveCount <= 1:
+                            p = 0
+                        else:
+                            p = i / (curveCount - 1.)
                         position = svgGroups.__ellipticalArc(
                             p0,
                             rx,
