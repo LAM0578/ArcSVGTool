@@ -24,8 +24,6 @@ __本项目只在 Python 3.12.0 测试过，其他版本的 Python 请自行测�
     - 用于界面主题
 - [`BlurWindow`](https://pypi.org/project/BlurWindow/)
     - 用于毛玻璃窗体效果
-- [`pyautogui`](https://pypi.org/project/pyautogui/)
-    - 用于获取屏幕大小计算自适应缩放
 
 ---
 
@@ -60,3 +58,6 @@ __本项目只在 Python 3.12.0 测试过，其他版本的 Python 请自行测�
 - 将尺寸数量限制在了 128 以内
 - 修复了弹窗没有 OK 按钮的问题
 - 修复了曲线数量为 1 的情况下会有 `ZeroDivisionError` 的问题
+
+### 2024 / 1 / 15 - 移除了对 pyautogui 的依赖
+- 移除了对 `pyautogui` 的依赖, 现在可以不使用 `pyautogui` 来自适应缩放了

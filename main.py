@@ -26,6 +26,7 @@ from PyQt5.QtGui import (
 from PyQt5.QtCore import QFileInfo, Qt
 from qt_material import apply_stylesheet
 from BlurWindow.blurWindow import GlobalBlur
+import ctypes
 
 # NCat 2023-12-24
 # pyinstaller --noconsole --onefile --add-data "Icon.ico;." --icon="Icon.ico" --name="ArcSVGTool" "main.py"
@@ -143,13 +144,15 @@ I18N_TEXTS = {
     }
 }
 
+GET_SYSTEM_METRICS = ctypes.windll.user32.GetSystemMetrics
+
 DESIGN_SIZE = point(2560, 1600)
 SCREEN_SCALE = 1
 
 def calcScale():
     global SCREEN_SCALE
-    import pyautogui
-    scrWidth, scrHeight = pyautogui.size()
+    scrWidth, scrHeight = GET_SYSTEM_METRICS(0), GET_SYSTEM_METRICS(1)
+    # print(scrWidth, scrHeight)
     widthScale = scrWidth / DESIGN_SIZE.x
     heightScale = scrHeight / DESIGN_SIZE.y
     SCREEN_SCALE = min(widthScale, heightScale)
@@ -642,6 +645,7 @@ if __name__ == "__main__":
         autoSetLang()
     except:
         pass
+    ctypes.windll.user32.SetProcessDPIAware()
     calcScale()
     app = QApplication(sys.argv)
     window = mainWindow()
