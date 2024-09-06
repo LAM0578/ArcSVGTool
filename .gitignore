@@ -5,3 +5,6 @@ ArcSVGTool.spec
 output.aff
 previewTest/*
 test/*
+.venv/*
+ArcSVGTool/*
+.backup/*

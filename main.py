@@ -23,13 +23,17 @@ from PyQt5.QtGui import (
     QPen,
     QFont
 )
+from math import (
+    floor,
+    ceil
+)
 from PyQt5.QtCore import QFileInfo, Qt
 from qt_material import apply_stylesheet
 from BlurWindow.blurWindow import GlobalBlur
 import ctypes
 
 # NCat 2023-12-24
-# pyinstaller --noconsole --onefile --add-data "Icon.ico;." --icon="Icon.ico" --name="ArcSVGTool" "main.py"
+# pyinstaller --noconsole --onefile --add-data "Icon.ico;." --workpath="" --icon="Icon.ico" --name="ArcSVGTool" "main.py"
 
 STYLE_SHEET = '''
 * {
@@ -82,10 +86,24 @@ I18N_TEXTS = {
         'en': 'Scale First',
         'zh-Hans': '缩放优先'
     },
+    'curveUseInterval':
+    {
+        'en': 'Curve split by interval',
+        'zh-Hans': '曲线使用间隔分割'
+    },
+    'autoCurveCount': {
+        'en': 'Auto Calc Curve Split Count',
+        'zh-Hans': '自动计算曲线分割数量'
+    },
+    'curveInterval':
+    {
+        'en': 'Curve Split Interval',
+        'zh-Hans': '曲线分割间隔'
+    },
     'curveCount':
     {
-        'en': 'Curve Count',
-        'zh-Hans': '曲线数量'
+        'en': 'Curve Split Count',
+        'zh-Hans': '曲线分割数量'
     },
     'generateAndSave':
     {
@@ -127,6 +145,11 @@ I18N_TEXTS = {
         'en': 'True: p * scale + offset\r\nFalse: (p + offset) * scale',
         'zh-Hans': '勾选后按照此公式进行缩放: p * scale + offset\r\n否则按照此公式进行缩放: (p + offset) * scale'
     },
+    'curveUseIntervalToolTip':
+    {
+        'en': 'When this option is selected, the number of curves will be calculated by the interval and the length of the curve',
+        'zh-Hans': '勾选后曲线分割数量将根据曲线间隔与曲线长度进行计算'
+    },
     'preview':
     {
         'en': 'Preview',
@@ -136,6 +159,11 @@ I18N_TEXTS = {
     {
         'en': 'Preview Size is 0',
         'zh-Hans': '预览尺寸为 0'
+    },
+    'invalidCurveInterval':
+    {
+        'en': 'Curve Interval is too small',
+        'zh-Hans': '曲线间隔过小'
     },
     'invalidCurveCount':
     {
@@ -148,6 +176,15 @@ GET_SYSTEM_METRICS = ctypes.windll.user32.GetSystemMetrics
 
 DESIGN_SIZE = point(2560, 1600)
 SCREEN_SCALE = 1
+
+# x2world(x) = (x * 850) - 425
+# y2world(y) = (y * 450) + 100
+# (y2world(1) - y2world(0)) / (x2world(1) - x2world(0)) = 0.529411
+Y_SCALE = 0.529411
+DESIGN_SIZE_Y_SCALE = Y_SCALE + 0.5
+
+GRID_X_LIMIT = 150
+GRID_Y_LIMIT = GRID_X_LIMIT // Y_SCALE
 
 def calcScale():
     global SCREEN_SCALE
@@ -255,17 +292,26 @@ class previewWindow(QWidget):
 
     def transPoint(self, p):
         _p = (p - point(self.mnw, self.mnh)) * self.scale
-        _p *= point(1, .5)
-        _p = point(_p.x, self.designSize - _p.y)
+        _p *= point(1, Y_SCALE)
+        _p = point(_p.x, (self.designSize * DESIGN_SIZE_Y_SCALE - _p.y))
         return ((_p + point(self.border)) * SCREEN_SCALE).toIntPoint()
+    
+    def resetPoint(self, p):
+        _p = (p / SCREEN_SCALE - point(self.border))
+        _p = point(_p.x, (self.designSize * DESIGN_SIZE_Y_SCALE - _p.y))
+        _p /= point(1, Y_SCALE)
+        _p /= self.scale
+        _p += point(self.mnw, self.mnh)
+        return _p
 
-    def drawText(self, painter, pen, x, y, text):
+    def drawText(self, painter, pen, x, y, text, shadow=True, color=QColor(255, 255, 255, 255)):
 
-        pen.setColor(QColor(0, 0, 0, 200))
-        painter.setPen(pen)
-        painter.drawText(x + 2, y + 2, text)
+        if shadow:
+            pen.setColor(QColor(0, 0, 0, 200))
+            painter.setPen(pen)
+            painter.drawText(x + 2, y + 2, text)
 
-        pen.setColor(QColor(255, 255, 255, 255))
+        pen.setColor(color)
         painter.setPen(pen)
         painter.drawText(x, y, text)
 
@@ -273,9 +319,16 @@ class previewWindow(QWidget):
 
         painter = QPainter(self)
         pen = QPen()
+        lastPenColor = None
+        
+        def cSetPenColor(c):
+            pen.setColor(c)
+            painter.setPen(pen)
 
-        def drawText(x, y, text):
-            self.drawText(painter, pen,x, y, text)
+        def drawText(x, y, text, shadow=True, color=QColor(255, 255, 255, 255)):
+            self.drawText(painter, pen, x, y, text, shadow, color)
+            if lastPenColor != None:
+                cSetPenColor(lastPenColor)
 
         def drawTextMultiLine(ofs, text: str):
             lines = text.splitlines()
@@ -287,8 +340,11 @@ class previewWindow(QWidget):
                 y -= ofs
         
         def setPenColor(r, g, b, a=255):
-            pen.setColor(QColor(r, g, b, a))
+            nonlocal lastPenColor
+            c = QColor(r, g, b, a)
+            pen.setColor(c)
             painter.setPen(pen)
+            lastPenColor = c
 
         def setPenWidth(w, mx=1):
             w = max(fixScale(int(w)), mx)
@@ -322,8 +378,65 @@ class previewWindow(QWidget):
         
         def lerp(a, b, t):
             return a + (b - a) * t
+    
+        _fontSize = int(10 * SCREEN_SCALE)
+        painter.setFont(QFont("Consolas", _fontSize))
 
+        _textOffsetX = _fontSize
+        _textOffsetY = _fontSize * 2
+
+        # draw grid
+        
         setPenWidth(2)
+        
+        _border2 = self.border * 2
+        mnp = self.resetPoint(point(0))
+        mxp = self.resetPoint(point(self.designSize + _border2))
+
+        setPenColor(255, 255, 255, 32)
+        textColor = QColor(255, 255, 255, 128)
+
+        mnx = min(mnp.x, mxp.x)
+        mxx = max(mnp.x, mxp.x)
+        i = floor(mnx)
+        count = ceil(mxx - i)
+        # print('x count: ', count)
+        if count <= GRID_X_LIMIT:
+            allowDrawText = count < 20
+            for j in range(count):
+                drawXLines(i)
+                if allowDrawText and j > 0:
+                    textPos = self.transPoint(point(i, 0))
+                    drawText(textPos.x, _textOffsetY, str(i), False, textColor)
+                i += 1
+
+        mny = min(mnp.y, mxp.y)
+        mxy = max(mnp.y, mxp.y)
+        i = floor(mny)
+        count = ceil((mxy - i))
+        # print('y count: ', count)
+        if count <= GRID_Y_LIMIT:
+            allowDrawText = count < 35
+            for j in range(count):
+                drawYLines(i)
+                if allowDrawText and j > 0:
+                    textPos = self.transPoint(point(0, i))
+                    drawText(_textOffsetX, textPos.y, str(i), False, textColor)
+                i += 1
+
+        # mnx = min(mnp.x, mxp.x)
+        # mxx = max(mnp.x, mxp.x)
+        # i = floor(mnx)
+        # while i <= mxx:
+        #     drawXLines(i)
+        #     i += 1
+
+        # mny = min(mnp.y, mxp.y)
+        # mxy = max(mnp.y, mxp.y)
+        # i = floor(mny)
+        # while i <= mxy:
+        #     drawYLines(i)
+        #     i += 1
 
         # draw 0 / 1 lines (x & y)
 
@@ -348,8 +461,10 @@ class previewWindow(QWidget):
             point(0, 1)
         ])
 
+        # draw lines
+
         setPenColor(0x91, 0x78, 0xaa, 200)
-        setPenWidth(.005 * self.scale, 4)
+        setPenWidth(.02 * self.scale, 2)
         
         for line in self.lines:
             p0 = self.transPoint(line[0])
@@ -357,9 +472,9 @@ class previewWindow(QWidget):
             
             painter.drawLine(p0.x, p0.y, p1.x, p1.y)
 
+        # draw info
+
         setPenColor(0, 0, 0)
-    
-        painter.setFont(QFont("Consolas", int(10 * SCREEN_SCALE)))
         
         ofs = int(25 * SCREEN_SCALE)
 
@@ -374,6 +489,9 @@ class previewWindow(QWidget):
                 '',
                 f'cnt x: {lerp(self.mnw, self.mxw, .5)}',
                 f'cnt y: {lerp(self.mnh, self.mxh, .5)}',
+                '',
+                f'scl w: {self.mxw - self.mnw}',
+                f'scl h: {self.mxh - self.mnh}',
             ]))
         
 class previewAffWindow(QWidget):
@@ -395,15 +513,18 @@ class mainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        widthOffset = 45
+        widthOffset = 155
         height = 25
+
+        if LANG == 'zh-Hans':
+            widthOffset = 105
 
         applyBlur(self)
         applyIcon(self)
 
         self.setWindowTitle(I18N_TEXTS["title"][LANG])
-        self.setGeometry(*fixScales(100, 100, 800, 600))
-        self.setFixedSize(*fixScales(800, 600))
+        self.setGeometry(*fixScales(100, 100, 800, 750))
+        self.setFixedSize(*fixScales(800, 750))
 
         # create components
 
@@ -444,8 +565,25 @@ class mainWindow(QMainWindow):
 
         height += 50
 
+        self.autoCurveCountLabel = self.__createLabel(
+            I18N_TEXTS["autoCurveCount"][LANG], 50, height, None)
+        self.autoCurveCountCheckBox = self.__createCheckBox(200 + widthOffset, height)
+
+        height += 50
+
+        self.curveUseIntervalLabel = self.__createLabel(
+            I18N_TEXTS["curveUseInterval"][LANG], 50, height, I18N_TEXTS["curveUseIntervalToolTip"][LANG])
+        self.curveUseIntervalCheckBox = self.__createCheckBox(200 + widthOffset, height)
+
+        height += 50
+
         self.curveCountLabel = self.__createLabel(I18N_TEXTS["curveCount"][LANG], 50, height)
         self.curveCountEdit = self.__createLineEdit(200 + widthOffset, height)
+
+        height += 50
+
+        self.curveIntervalLabel = self.__createLabel(I18N_TEXTS["curveInterval"][LANG], 50, height)
+        self.curveIntervalEdit = self.__createLineEdit(200 + widthOffset, height)
 
         height += 70
 
@@ -519,6 +657,7 @@ class mainWindow(QMainWindow):
         self.scaleYEdit.setText('-2')
         self.scaleFirstCheckBox.setChecked(True)
         self.curveCountEdit.setText('7')
+        self.curveIntervalEdit.setText('0.1')
 
     def messageBox(self, funcName, exc):
         if isVscode():
@@ -581,13 +720,24 @@ class mainWindow(QMainWindow):
             )
         )
         scaleFirst = self.scaleFirstCheckBox.isChecked()
+        curveUseInterval = self.curveUseIntervalCheckBox.isChecked()
+        curveInterval = self.__tryParseFloat(
+            self.curveIntervalEdit.text(),
+            self.curveIntervalLabel.text()
+        )
         curveCount = self.__tryParseInt(
             self.curveCountEdit.text(),
             self.curveCountLabel.text()
         )
-        if curveCount > 128:
-            raise OverflowError(I18N_TEXTS['invalidCurveCount'][LANG])
-        return svgRaw, tick, offset, scale, scaleFirst, curveCount
+        autoCurveCount = self.autoCurveCountCheckBox.isChecked()
+        if not autoCurveCount:
+            if curveUseInterval:
+                if curveInterval < 0.01:
+                    raise ValueError(I18N_TEXTS['invalidCurveInterval'][LANG])
+            else:
+                if curveCount > 128:
+                    raise OverflowError(I18N_TEXTS['invalidCurveCount'][LANG])
+        return svgRaw, tick, offset, scale, scaleFirst, curveCount, curveInterval, curveUseInterval, autoCurveCount
 
     def generate(self):
         try:
