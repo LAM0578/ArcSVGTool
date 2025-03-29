@@ -30,7 +30,9 @@ from math import (
 from PyQt5.QtCore import QFileInfo, Qt
 from qt_material import apply_stylesheet
 from BlurWindow.blurWindow import GlobalBlur
+import sys
 import ctypes
+import locale
 
 # NCat 2023-12-24
 # pyinstaller --noconsole --onefile --add-data "Icon.ico;." --workpath="" --icon="Icon.ico" --name="ArcSVGTool" "main.py"
@@ -51,128 +53,141 @@ QPushButton#mainWindowButton {
 }
 '''
 
+_LANG_EN = 'en_US'
+_LANG_ZH_HANS = 'Chinese (Simplified)_China'
+
 I18N_TEXTS = {
     'title':
     {
-        'en': 'SVG Path to AFF',
-        'zh-Hans': 'SVG 路径转 AFF'
+        _LANG_EN: 'SVG Path to AFF',
+        _LANG_ZH_HANS: 'SVG 路径转 AFF'
     },
     'affPreview': {
-        'en': 'AFF Preview',
-        'zh-Hans': 'AFF 预览',
+        _LANG_EN: 'AFF Preview',
+        _LANG_ZH_HANS: 'AFF 预览',
     },
     'svgRaw':
     {
-        'en': 'SVG Path Raw',
-        'zh-Hans': 'SVG 路径原始数据'
+        _LANG_EN: 'SVG Path Raw',
+        _LANG_ZH_HANS: 'SVG 路径原始数据'
     },
     'tick':
     {
-        'en': 'Generate Tick',
-        'zh-Hans': '生成时间'
+        _LANG_EN: 'Generate Tick',
+        _LANG_ZH_HANS: '生成时间'
     },
     'offset':
     {
-        'en': 'Result Offset',
-        'zh-Hans': '结果偏移'
+        _LANG_EN: 'Result Offset',
+        _LANG_ZH_HANS: '结果偏移'
     },
     'scale':
     {
-        'en': 'Result Scale',
-        'zh-Hans': '结果缩放'
+        _LANG_EN: 'Result Scale',
+        _LANG_ZH_HANS: '结果缩放'
     },
     'scaleFirst':
     {
-        'en': 'Scale First',
-        'zh-Hans': '缩放优先'
+        _LANG_EN: 'Scale First',
+        _LANG_ZH_HANS: '缩放优先'
     },
     'curveUseInterval':
     {
-        'en': 'Curve split by interval',
-        'zh-Hans': '曲线使用间隔分割'
+        _LANG_EN: 'Curve split by interval',
+        _LANG_ZH_HANS: '曲线使用间隔分割'
     },
     'autoCurveCount': {
-        'en': 'Auto Calc Curve Split Count',
-        'zh-Hans': '自动计算曲线分割数量'
+        _LANG_EN: 'Auto Calc Curve Split Count',
+        _LANG_ZH_HANS: '自动计算曲线分割数量'
     },
     'curveInterval':
     {
-        'en': 'Curve Split Interval',
-        'zh-Hans': '曲线分割间隔'
+        _LANG_EN: 'Curve Split Interval',
+        _LANG_ZH_HANS: '曲线分割间隔'
     },
     'curveCount':
     {
-        'en': 'Curve Split Count',
-        'zh-Hans': '曲线分割数量'
+        _LANG_EN: 'Curve Split Count',
+        _LANG_ZH_HANS: '曲线分割数量'
     },
     'generateAndSave':
     {
-        'en': 'Generate And Save',
-        'zh-Hans': '生成并保存'
+        _LANG_EN: 'Generate And Save',
+        _LANG_ZH_HANS: '生成并保存'
     },
     'error':
     {
-        'en': 'Error',
-        'zh-Hans': '错误'
+        _LANG_EN: 'Error',
+        _LANG_ZH_HANS: '错误'
     },
     'invalidInt':
     {
-        'en': 'invalid int value: {}\nat {}',
-        'zh-Hans': '无效的 int 值: {}\n位于 {}'
+        _LANG_EN: 'invalid int value: {}\nat {}',
+        _LANG_ZH_HANS: '无效的 int 值: {}\n位于 {}'
     },
     'invalidFloat':
     {
-        'en': 'invalid float value: {}\nat {}',
-        'zh-Hans': '无效的 float 值: {}\n位于 {}'
+        _LANG_EN: 'invalid float value: {}\nat {}',
+        _LANG_ZH_HANS: '无效的 float 值: {}\n位于 {}'
     },
     'saveAs':
     {
-        'en': 'Save As',
-        'zh-Hans': '储存为'
+        _LANG_EN: 'Save As',
+        _LANG_ZH_HANS: '储存为'
     },
     'fileFilter' :
     {
-        'en': 'All Files (*);;Arcaea Chart File (*.aff);;Text File (*.txt)',
-        'zh-Hans': '所有文件 (*);;Arcaea 谱面文件 (*.aff);;文本文件 (*.txt)'
+        _LANG_EN: 'All Files (*);;Arcaea Chart File (*.aff);;Text File (*.txt)',
+        _LANG_ZH_HANS: '所有文件 (*);;Arcaea 谱面文件 (*.aff);;文本文件 (*.txt)'
     },
     'svgRawToolTip':
     {
-        'en': 'Please use https://yqnn.github.io/svg-path-editor/ to format your SVG Path\r\nPlease do not use Minify output', 
-        'zh-Hans': '使用时请到 https://yqnn.github.io/svg-path-editor/ 格式化你的 SVG 路径\r\n请不要使用 Minify output 输出'
+        _LANG_EN: 'Please use https://yqnn.github.io/svg-path-editor/ to format your SVG Path\r\nPlease do not use Minify output', 
+        _LANG_ZH_HANS: '使用时请到 https://yqnn.github.io/svg-path-editor/ 格式化你的 SVG 路径\r\n请不要使用 Minify output 输出'
     },
     'scaleFirstToolTip':
     {
-        'en': 'True: p * scale + offset\r\nFalse: (p + offset) * scale',
-        'zh-Hans': '勾选后按照此公式进行缩放: p * scale + offset\r\n否则按照此公式进行缩放: (p + offset) * scale'
+        _LANG_EN: 'True: p * scale + offset\r\nFalse: (p + offset) * scale',
+        _LANG_ZH_HANS: '勾选后按照此公式进行缩放: p * scale + offset\r\n否则按照此公式进行缩放: (p + offset) * scale'
     },
     'curveUseIntervalToolTip':
     {
-        'en': 'When this option is selected, the number of curves will be calculated by the interval and the length of the curve',
-        'zh-Hans': '勾选后曲线分割数量将根据曲线间隔与曲线长度进行计算'
+        _LANG_EN: 'When this option is selected, the number of curves will be calculated by the interval and the length of the curve',
+        _LANG_ZH_HANS: '勾选后曲线分割数量将根据曲线间隔与曲线长度进行计算'
     },
     'preview':
     {
-        'en': 'Preview',
-        'zh-Hans': '预览'
+        _LANG_EN: 'Preview',
+        _LANG_ZH_HANS: '预览'
     },
     'zeroPreviewSize':
     {
-        'en': 'Preview Size is 0',
-        'zh-Hans': '预览尺寸为 0'
+        _LANG_EN: 'Preview Size is 0',
+        _LANG_ZH_HANS: '预览尺寸为 0'
     },
     'invalidCurveInterval':
     {
-        'en': 'Curve Interval is too small',
-        'zh-Hans': '曲线间隔过小'
+        _LANG_EN: 'Curve Interval is too small',
+        _LANG_ZH_HANS: '曲线间隔过小'
     },
     'invalidCurveCount':
     {
-        'en': 'Curve Count is too large',
-        'zh-Hans': '曲线数量过大'
+        _LANG_EN: 'Curve Count is too large',
+        _LANG_ZH_HANS: '曲线数量过大'
+    },
+    'format': {
+        _LANG_EN: 'Format',
+        _LANG_ZH_HANS: '格式'
+    },
+    'invalidFormat': {
+        _LANG_EN: 'Invaild format, must be start with \'f\'',
+        _LANG_ZH_HANS: '非法格式, 必须以 \'f\' 开头'
+    },
+    'info': {
+        _LANG_EN: 'Info',
+        _LANG_ZH_HANS: '信息'
     }
 }
-
-GET_SYSTEM_METRICS = ctypes.windll.user32.GetSystemMetrics
 
 DESIGN_SIZE = point(2560, 1600)
 SCREEN_SCALE = 1
@@ -186,14 +201,14 @@ DESIGN_SIZE_Y_SCALE = Y_SCALE + 0.5
 GRID_X_LIMIT = 150
 GRID_Y_LIMIT = GRID_X_LIMIT // Y_SCALE
 
-def calcScale():
+def calculateScreenScale():
     global SCREEN_SCALE
-    scrWidth, scrHeight = GET_SYSTEM_METRICS(0), GET_SYSTEM_METRICS(1)
-    # print(scrWidth, scrHeight)
+    screenRect = QApplication.primaryScreen().geometry()
+    scrWidth = screenRect.width()
+    scrHeight = screenRect.height()
     widthScale = scrWidth / DESIGN_SIZE.x
     heightScale = scrHeight / DESIGN_SIZE.y
-    SCREEN_SCALE = min(widthScale, heightScale)
-    # print(scrWidth, scrHeight, SCREEN_SCALE)
+    SCREEN_SCALE = max(min(widthScale, heightScale), .6)
 
 def fixScale(x):
     return int(x * SCREEN_SCALE)
@@ -201,7 +216,7 @@ def fixScale(x):
 def fixScales(*n):
     return list(map(fixScale, n))
 
-def isVscode():
+def isVSCode():
     try:
         if sys.ps1:
             return True
@@ -209,20 +224,15 @@ def isVscode():
     except:
         return False
 
-LANG = 'en'
+LANG = _LANG_EN
 
-def autoSetLang():
-    import sys
-    import ctypes
+def autoSetLanguage():
     global LANG
 
-    if sys.platform == 'win32':
-        dll = ctypes.windll.kernel32
-        code = dll.GetUserDefaultUILanguage()
-        if (code == 0x804 or
-            code == 0xc04 or
-            code == 0x404):
-            LANG = 'zh-Hans'
+    language = locale.getlocale()[0]
+    if language != _LANG_ZH_HANS:
+        LANG = _LANG_EN
+    LANG = language
 
 def applyBlur(window):
     window.setAttribute(Qt.WA_TranslucentBackground)
@@ -513,18 +523,22 @@ class mainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
+        # screenRect = QApplication.desktop().screenGeometry()
+
+        calculateScreenScale()
+
         widthOffset = 155
         height = 25
 
-        if LANG == 'zh-Hans':
+        if LANG == _LANG_ZH_HANS:
             widthOffset = 105
 
         applyBlur(self)
         applyIcon(self)
 
         self.setWindowTitle(I18N_TEXTS["title"][LANG])
-        self.setGeometry(*fixScales(100, 100, 800, 750))
-        self.setFixedSize(*fixScales(800, 750))
+        self.setGeometry(*fixScales(100, 100, 800, 800))
+        self.setFixedSize(*fixScales(800, 800))
 
         # create components
 
@@ -584,6 +598,11 @@ class mainWindow(QMainWindow):
 
         self.curveIntervalLabel = self.__createLabel(I18N_TEXTS["curveInterval"][LANG], 50, height)
         self.curveIntervalEdit = self.__createLineEdit(200 + widthOffset, height)
+
+        height += 50
+
+        self.formatLabel = self.__createLabel(I18N_TEXTS["format"][LANG], 50, height)
+        self.formatEdit = self.__createLineEdit(200 + widthOffset, height)
 
         height += 70
 
@@ -658,14 +677,22 @@ class mainWindow(QMainWindow):
         self.scaleFirstCheckBox.setChecked(True)
         self.curveCountEdit.setText('7')
         self.curveIntervalEdit.setText('0.1')
+        self.formatEdit.setText('f2')
 
-    def messageBox(self, funcName, exc):
-        if isVscode():
+    def messageBox(self, funcNameOrContent, exc):
+        if exc == None:
+            QMessageBox.information(
+                self,
+                I18N_TEXTS['info'][LANG],
+                funcNameOrContent
+            )
+            return
+        if isVSCode():
             raise exc
         QMessageBox.critical(
             self,
             I18N_TEXTS["error"][LANG],
-            funcName + '\n\n' +
+            funcNameOrContent + '\n\n' +
             exc.__str__()
         )
 
@@ -730,6 +757,9 @@ class mainWindow(QMainWindow):
             self.curveCountLabel.text()
         )
         autoCurveCount = self.autoCurveCountCheckBox.isChecked()
+        format_ = self.formatEdit.text().strip()
+        if format_ == '' or format_[0].lower() != 'f':
+            raise ValueError(I18N_TEXTS["invalidFormat"][LANG])
         if not autoCurveCount:
             if curveUseInterval:
                 if curveInterval < 0.01:
@@ -737,7 +767,7 @@ class mainWindow(QMainWindow):
             else:
                 if curveCount > 128:
                     raise OverflowError(I18N_TEXTS['invalidCurveCount'][LANG])
-        return svgRaw, tick, offset, scale, scaleFirst, curveCount, curveInterval, curveUseInterval, autoCurveCount
+        return svgRaw, tick, offset, scale, scaleFirst, curveCount, curveInterval, curveUseInterval, autoCurveCount, format_
 
     def generate(self):
         try:
@@ -782,7 +812,9 @@ class mainWindow(QMainWindow):
     def openPreview(self):
         try:
             config = self.__parseConfig()
-            lines = svgPath2Lines(config[0], *config[2:])
+            # self.messageBox(config[-1], None)
+            ndigits = int(config[-1][1:])
+            lines = svgPath2Lines(config[0], *config[2:-1], ndigits)
             self.previewWin = previewWindow(lines)
             self.previewWin.show()
 
@@ -792,11 +824,11 @@ class mainWindow(QMainWindow):
 
 if __name__ == "__main__":
     try:
-        autoSetLang()
+        autoSetLanguage()
     except:
         pass
-    ctypes.windll.user32.SetProcessDPIAware()
-    calcScale()
+    # ctypes.windll.user32.SetProcessDPIAware()
+    # calcScreenScale()
     app = QApplication(sys.argv)
     window = mainWindow()
     apply_stylesheet(app, theme='default_dark.xml')

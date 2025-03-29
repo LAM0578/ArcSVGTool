@@ -10,6 +10,7 @@ from math import (
     fmod as _fmod
 )
 from mathHelper import *
+import struct
 
 _MIN_CURVE_COUNT = 3
 _LENGTH_SCALE = 30
@@ -17,15 +18,21 @@ _LENGTH_SCALE = 30
 class helper:
 
     @staticmethod
-    def genArc(t, pa, pb):
-        return 'arc({},{},{:.2f},{:.2f},s,{:.2f},{:.2f},0,none,true);'.format(
-            t,
-            t,
-            pa.x,
-            pb.x,
-            pa.y,
-            pb.y
-        )
+    def genArc(t, pa, pb, p):
+        if pa.y > pb.y:
+            (pa, pb) = (pb, pa)
+        return f'arc({t},{t},{pa.x:{p}},{pb.x:{p}},s,{pa.y:{p}},{pb.y:{p}},0,none,true);'
+        # return 'arc({},{},{:.2f},{:.2f},s,{:.2f},{:.2f},0,none,true);'.format(
+        #     t,
+        #     t,
+        #     pa.x,
+        #     pb.x,
+        #     pa.y,
+        #     pb.y
+        # )
+    
+def castToInt(f):
+    return struct.unpack('i', struct.pack('f', f))[0]
 
 def autoCalculateCount(length):
     oLength = length
@@ -371,7 +378,7 @@ class svgGroups:
             _sin(xAxisRotationRadians) * ellipseComponentX + _cos(xAxisRotationRadians) * ellipseComponentY + center.y
         )
     
-    def svg2lines(self, offset, scale, scaleFirst, curveCount, curveInterval, curveUseInterval, autoCurveCount):
+    def svg2lines(self, offset, scale, scaleFirst, curveCount, curveInterval, curveUseInterval, autoCurveCount, ndigits):
         result = []
         for group in self.__groups:
             
@@ -670,15 +677,24 @@ class svgGroups:
         nResult = []
         nHashCodes = []
         for l in result:
-            l = list(map(lambda x: x.roundNdigits(2), l))
+            l = list(map(lambda x: x.roundNdigits(ndigits), l))
             if l[0] == l[1]:
                 continue
-            h = hash(l[0].x) ^ (hash(l[0].y) << 2) ^ (hash(l[1].x) >> 2) ^ (hash(l[1].y) >> 1)
+            h = -120818822
+            h = h * -1521134295 + castToInt(l[0].x)
+            h = h % (2 ** 63 - 1) - (2 ** 31 - 1)
+            h = h * -1521134295 + castToInt(l[0].y)
+            h = h % (2 ** 63 - 1) - (2 ** 31 - 1)
+            h = h * -1521134295 + castToInt(l[1].x)
+            h = h % (2 ** 63 - 1) - (2 ** 31 - 1)
+            h = h * -1521134295 + castToInt(l[1].y)
+            h = h % (2 ** 63 - 1) - (2 ** 31 - 1)
             if h in nHashCodes:
+                # print('!', h)
                 continue
             nHashCodes.append(h)
             length = lengthOfTwoPoints(*l)
-            if length < 0.01:
+            if length < (10 ** (-ndigits)):
                 continue
             nResult.append(l)
         
@@ -743,17 +759,21 @@ def parseCommands(raw: str):
 
     return commands
 
-def svgPath2Aff(raw, tick, offset, scale, scaleFirst, curveCount, curveInterval, curveUseInterval, autoCurveCount):
-    lines = svgPath2Lines(raw, offset, scale, scaleFirst, curveCount, curveInterval, curveUseInterval, autoCurveCount)
+def svgPath2Aff(raw, tick, offset, scale, scaleFirst, curveCount, curveInterval, curveUseInterval, autoCurveCount, format_):
+    if format_[0] == 'f':
+        ndigits = int(format_[1:])
+        format_ = f'.{format_[1:]}f'
+    
+    lines = svgPath2Lines(raw, offset, scale, scaleFirst, curveCount, curveInterval, curveUseInterval, autoCurveCount, ndigits)
     result = []
 
     for line in lines:
-        result.append(helper.genArc(tick, line[0], line[1]))
+        result.append(helper.genArc(tick, line[0], line[1], format_))
 
     result = '\n'.join(result)
     return result
 
-def svgPath2Lines(raw, offset, scale, scaleFirst, curveCount, curveInterval, curveUseInterval, autoCurveCount):
+def svgPath2Lines(raw, offset, scale, scaleFirst, curveCount, curveInterval, curveUseInterval, autoCurveCount, ndigits):
     global _LENGTH_SCALE
 
     _LENGTH_SCALE = max(abs(scale.x), abs(scale.y)) * 25
@@ -782,7 +802,7 @@ def svgPath2Lines(raw, offset, scale, scaleFirst, curveCount, curveInterval, cur
         groups.append((lastGroup, hasZ))
     
     groups = svgGroups(groups)
-    return groups.svg2lines(offset, scale, scaleFirst, curveCount, curveInterval, curveUseInterval, autoCurveCount)
+    return groups.svg2lines(offset, scale, scaleFirst, curveCount, curveInterval, curveUseInterval, autoCurveCount, ndigits)
 
 
 def __main(*args):
@@ -799,7 +819,7 @@ def __main(*args):
         outputPath
     ) = args
     
-    outputStr = svgPath2Aff(svgRaw, tick, offset, scale, scaleFirst, curveCount, curveInterval, curveUseInterval, autoCurveCount)
+    outputStr = svgPath2Aff(svgRaw, tick, offset, scale, scaleFirst, curveCount, curveInterval, curveUseInterval, autoCurveCount, 2)
 
     if writeToFile:
         with open(outputPath, 'w') as f:
