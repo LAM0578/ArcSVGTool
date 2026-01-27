@@ -22,14 +22,12 @@ class helper:
         if pa.y > pb.y:
             (pa, pb) = (pb, pa)
         return f'arc({t},{t},{pa.x:{p}},{pb.x:{p}},s,{pa.y:{p}},{pb.y:{p}},0,none,true);'
-        # return 'arc({},{},{:.2f},{:.2f},s,{:.2f},{:.2f},0,none,true);'.format(
-        #     t,
-        #     t,
-        #     pa.x,
-        #     pb.x,
-        #     pa.y,
-        #     pb.y
-        # )
+    
+    @staticmethod
+    def genArcWithEnd(t, et, pa, pb, p):
+        # if pa.y > pb.y:
+        #     (pa, pb) = (pb, pa)
+        return f'arc({t},{et},{pa.x:{p}},{pb.x:{p}},s,{pa.y:{p}},{pb.y:{p}},0,none,true);'
     
 def castToInt(f):
     return struct.unpack('i', struct.pack('f', f))[0]
@@ -157,6 +155,9 @@ class point:
     
     def toNpArray(self):
         return np.array([self.x, self.y])
+    
+    def toArray(self):
+        return [self.x, self.y]
     
     def roundNdigits(self, n):
         return point(round(self.x, n), round(self.y, n))
@@ -759,7 +760,21 @@ def parseCommands(raw: str):
 
     return commands
 
-def svgPath2Aff(raw, tick, offset, scale, scaleFirst, curveCount, curveInterval, curveUseInterval, autoCurveCount, format_):
+def svgPath2Aff(
+    raw,
+    tick,
+    endTick,
+    offset,
+    offsetEnd,
+    scale,
+    scaleFirst,
+    curveCount,
+    curveInterval,
+    curveUseInterval,
+    autoCurveCount,
+    format_,
+    useZPosMode
+):
     if format_[0] == 'f':
         ndigits = int(format_[1:])
         format_ = f'.{format_[1:]}f'
@@ -767,8 +782,42 @@ def svgPath2Aff(raw, tick, offset, scale, scaleFirst, curveCount, curveInterval,
     lines = svgPath2Lines(raw, offset, scale, scaleFirst, curveCount, curveInterval, curveUseInterval, autoCurveCount, ndigits)
     result = []
 
-    for line in lines:
-        result.append(helper.genArc(tick, line[0], line[1], format_))
+    if useZPosMode:
+        minY = float('inf')
+        maxY = float('-inf')
+
+        for line in lines:
+            p0, p1 = line
+            minY = min(minY, p0.y, p1.y)
+            maxY = max(maxY, p0.y, p1.y)
+        
+        def invLerp(y):
+            return (y - minY) / (maxY - minY)
+        
+        def lerpTime(t):
+            return int(tick + t * (endTick - tick))
+        
+        def lerpXOffset(t):
+            return t * offsetEnd.x
+        
+        def lerpYOffset(t):
+            return offset.y + t * offsetEnd.y
+        
+        for line in lines:
+            p0, p1 = line
+            t0, t1 = invLerp(p0.y), invLerp(p1.y)
+            if t0 > t1:
+                t0, t1 = t1, t0
+                p0, p1 = p1, p0
+            p0.x += lerpXOffset(t0)
+            p1.x += lerpXOffset(t1)
+            p0.y, p1.y = lerpYOffset(t0), lerpYOffset(t1)
+            time, endTime = lerpTime(t0), lerpTime(t1)
+            result.append(helper.genArcWithEnd(time, endTime, p0, p1, format_))
+
+    else:
+        for line in lines:
+            result.append(helper.genArc(tick, line[0], line[1], format_))
 
     result = '\n'.join(result)
     return result
@@ -819,7 +868,21 @@ def __main(*args):
         outputPath
     ) = args
     
-    outputStr = svgPath2Aff(svgRaw, tick, offset, scale, scaleFirst, curveCount, curveInterval, curveUseInterval, autoCurveCount, 2)
+    outputStr = svgPath2Aff(
+        svgRaw,
+        tick,
+        0,                 # endTick
+        offset,
+        point(0, 0),       # offsetEnd
+        scale,
+        scaleFirst,
+        curveCount,
+        curveInterval,
+        curveUseInterval,
+        autoCurveCount,
+        'f2',             # format
+        False             # useZPosMode
+    )
 
     if writeToFile:
         with open(outputPath, 'w') as f:

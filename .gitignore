@@ -8,3 +8,5 @@ test/*
 .venv/*
 ArcSVGTool/*
 .backup/*
+release/*
+config.json

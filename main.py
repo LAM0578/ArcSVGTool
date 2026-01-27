@@ -1,4 +1,6 @@
 import sys
+import os
+import json
 from svg2aff import (
     svgPath2Aff,
     svgPath2Lines,
@@ -34,8 +36,9 @@ import sys
 import ctypes
 import locale
 
-# NCat 2023-12-24
-# pyinstaller --noconsole --onefile --add-data "Icon.ico;." --workpath="" --icon="Icon.ico" --name="ArcSVGTool" "main.py"
+# NCat 2026-01-27
+# **Please build in venv**
+# pyinstaller --noconsole --onedir --add-data "Icon.ico;." --workpath="" --icon="Icon.ico" --name="ArcSVGTool" "main.py" -y
 
 STYLE_SHEET = '''
 * {
@@ -73,13 +76,23 @@ I18N_TEXTS = {
     },
     'tick':
     {
-        _LANG_EN: 'Generate Tick',
+        _LANG_EN: 'Generate Time',
         _LANG_ZH_HANS: '生成时间'
+    },
+    'endTick':
+    {
+        _LANG_EN: 'Generate End Time',
+        _LANG_ZH_HANS: '生成的结束时间'
     },
     'offset':
     {
         _LANG_EN: 'Result Offset',
         _LANG_ZH_HANS: '结果偏移'
+    },
+    'deltaOffsetEnd':
+    {
+        _LANG_EN: 'End Result Delta Offset',
+        _LANG_ZH_HANS: '结束结果叠加偏移'
     },
     'scale':
     {
@@ -183,6 +196,14 @@ I18N_TEXTS = {
         _LANG_EN: 'Invaild format, must be start with \'f\'',
         _LANG_ZH_HANS: '非法格式, 必须以 \'f\' 开头'
     },
+    'useZPosMode': {
+        _LANG_EN: 'Use Z Position Mode',
+        _LANG_ZH_HANS: '使用 Z 位置模式'
+    },
+    'useZPosModeToolTip': {
+        _LANG_EN: 'When enabled, the minimum/maximum Y of the shape and the start/end Y of each segment will be interpolated between the start and end time to determine Z position',
+        _LANG_ZH_HANS: '勾选后将使用图形的最小 / 最大 Y 和线段的起始 / 结束 Y 位置在开始 / 结束时间之间进行插值'
+    },
     'info': {
         _LANG_EN: 'Info',
         _LANG_ZH_HANS: '信息'
@@ -263,23 +284,11 @@ class previewWindow(QWidget):
             p0 = line[0]
             p1 = line[1]
             # min
-            if p0.x < self.mnw:
-                self.mnw = p0.x
-            if p0.y < self.mnh:
-                self.mnh = p0.y
-            if p1.x < self.mnw:
-                self.mnw = p1.x
-            if p1.y < self.mnh:
-                self.mnh = p1.y
+            self.mnw = min(self.mnw, p0.x, p1.x)
+            self.mnh = min(self.mnh, p0.y, p1.y)
             # max
-            if p0.x > self.mxw:
-                self.mxw = p0.x
-            if p0.y > self.mxh:
-                self.mxh = p0.y
-            if p1.x > self.mxw:
-                self.mxw = p1.x
-            if p1.y > self.mxh:
-                self.mxh = p1.y
+            self.mxw = max(self.mxw, p0.x, p1.x)
+            self.mxh = max(self.mxh, p0.y, p1.y)
 
         mnw = self.mnw
         mnh = self.mnh
@@ -537,8 +546,8 @@ class mainWindow(QMainWindow):
         applyIcon(self)
 
         self.setWindowTitle(I18N_TEXTS["title"][LANG])
-        self.setGeometry(*fixScales(100, 100, 800, 800))
-        self.setFixedSize(*fixScales(800, 800))
+        self.setGeometry(*fixScales(100, 100, 800, 950))
+        self.setFixedSize(*fixScales(800, 950))
 
         # create components
 
@@ -557,11 +566,25 @@ class mainWindow(QMainWindow):
 
         height += 50
 
+        self.endTickLabel = self.__createLabel(
+            I18N_TEXTS["endTick"][LANG], 50, height)
+        self.endTickEdit = self.__createLineEdit(200 + widthOffset, height)
+
+        height += 50
+
         self.offsetLabel = self.__createLabel(
             I18N_TEXTS["offset"][LANG], 50, height)
 
         self.offsetXEdit = self.__createLineEdit(200 + widthOffset, height)
         self.offsetYEdit = self.__createLineEdit(325 + widthOffset, height)
+
+        height += 50
+
+        self.offsetEndLabel = self.__createLabel(
+            I18N_TEXTS["deltaOffsetEnd"][LANG], 50, height)
+
+        self.offsetEndXEdit = self.__createLineEdit(200 + widthOffset, height)
+        self.offsetEndYEdit = self.__createLineEdit(325 + widthOffset, height)
 
         height += 50
 
@@ -604,6 +627,12 @@ class mainWindow(QMainWindow):
         self.formatLabel = self.__createLabel(I18N_TEXTS["format"][LANG], 50, height)
         self.formatEdit = self.__createLineEdit(200 + widthOffset, height)
 
+        height += 50
+
+        self.useZPosModeLabel = self.__createLabel(
+            I18N_TEXTS["useZPosMode"][LANG], 50, height, I18N_TEXTS["useZPosModeToolTip"][LANG])
+        self.useZPosModeCheckBox = self.__createCheckBox(200 + widthOffset, height)
+
         height += 70
 
         self.generateButton = self.__createButton(
@@ -629,6 +658,19 @@ class mainWindow(QMainWindow):
             self.openAffPreview)
 
         self.__setDefaultComponentValues()
+        self.importConfig()
+
+    @staticmethod
+    def __getDirPath():
+        path = __file__
+        if not os.path.exists(path): # is pyinstaller exe
+            path = os.path.abspath(sys.executable)
+        return os.path.dirname(path)
+    
+    @staticmethod
+    def __getConfigPath():
+        dirPath = mainWindow.__getDirPath()
+        return os.path.join(dirPath, "config.json")
     
     def __createLabel(self, content, x, y, tooltip=None):
         label = QLabel(self)
@@ -670,8 +712,11 @@ class mainWindow(QMainWindow):
     def __setDefaultComponentValues(self):
         self.svgRawEdit.setText('M 0 0 l 1 0 l 0 1 l -1 0 Z')
         self.tickEdit.setText('0')
+        self.endTickEdit.setText('0')
         self.offsetXEdit.setText('0')
         self.offsetYEdit.setText('0')
+        self.offsetEndXEdit.setText('0')
+        self.offsetEndYEdit.setText('0')
         self.scaleXEdit.setText('1')
         self.scaleYEdit.setText('-2')
         self.scaleFirstCheckBox.setChecked(True)
@@ -720,11 +765,15 @@ class mainWindow(QMainWindow):
                 )
             )
         
-    def __parseConfig(self):
+    def __parseConfig(self, dic=None):
         svgRaw = self.svgRawEdit.toPlainText()
         tick = self.__tryParseInt(
             self.tickEdit.text(),
             self.tickLabel.text()
+        )
+        endTick = self.__tryParseInt(
+            self.endTickEdit.text(),
+            self.endTickLabel.text()
         )
         offset = point(
             self.__tryParseFloat(
@@ -734,6 +783,16 @@ class mainWindow(QMainWindow):
             self.__tryParseFloat(
                 self.offsetYEdit.text(),
                 self.offsetLabel.text() + ' y'
+            )
+        )
+        deltaOffsetEnd = point(
+            self.__tryParseFloat(
+                self.offsetEndXEdit.text(),
+                self.offsetEndLabel.text() + ' x'
+            ),
+            self.__tryParseFloat(
+                self.offsetEndYEdit.text(),
+                self.offsetEndLabel.text() + ' y'
             )
         )
         scale = point(
@@ -767,7 +826,73 @@ class mainWindow(QMainWindow):
             else:
                 if curveCount > 128:
                     raise OverflowError(I18N_TEXTS['invalidCurveCount'][LANG])
-        return svgRaw, tick, offset, scale, scaleFirst, curveCount, curveInterval, curveUseInterval, autoCurveCount, format_
+        useZPosMode = self.useZPosModeCheckBox.isChecked()
+        if dic != None:
+            dic['svgRaw'] = svgRaw
+            dic['tick'] = tick
+            dic['endTick'] = endTick
+            dic['offset'] = offset.toArray()
+            dic['deltaOffsetEnd'] = deltaOffsetEnd.toArray()
+            dic['scale'] = scale.toArray()
+            dic['scaleFirst'] = scaleFirst
+            dic['curveCount'] = curveCount
+            dic['curveInterval'] = curveInterval
+            dic['curveUseInterval'] = curveUseInterval
+            dic['autoCurveCount'] = autoCurveCount
+            dic['format'] = format_
+            dic['useZPosMode'] = useZPosMode
+        return (
+            svgRaw,
+            tick,
+            endTick,
+            offset,
+            deltaOffsetEnd,
+            scale,
+            scaleFirst,
+            curveCount,
+            curveInterval,
+            curveUseInterval,
+            autoCurveCount,
+            format_,
+            useZPosMode
+        )
+    
+    def exportConfig(self):
+        configPath = self.__getConfigPath()
+        dic = {}
+        self.__parseConfig(dic)
+        with open(configPath, 'w', encoding='utf-8') as f:
+            json.dump(dic, f, indent=2, ensure_ascii=False)
+
+    def importConfig(self):
+        configPath = self.__getConfigPath()
+        if not os.path.exists(configPath):
+            return
+        with open(configPath, 'r', encoding='utf-8') as f:
+            try:
+                dic = json.load(f)
+                self.svgRawEdit.setText(dic['svgRaw'])
+                self.tickEdit.setText(str(dic['tick']))
+                self.endTickEdit.setText(str(dic['endTick']))
+                self.offsetXEdit.setText(str(dic['offset'][0]))
+                self.offsetYEdit.setText(str(dic['offset'][1]))
+                self.offsetEndXEdit.setText(str(dic['deltaOffsetEnd'][0]))
+                self.offsetEndYEdit.setText(str(dic['deltaOffsetEnd'][1]))
+                self.scaleXEdit.setText(str(dic['scale'][0]))
+                self.scaleYEdit.setText(str(dic['scale'][1]))
+                self.scaleFirstCheckBox.setChecked(dic['scaleFirst'])
+                self.curveCountEdit.setText(str(dic['curveCount']))
+                self.curveIntervalEdit.setText(str(dic['curveInterval']))
+                self.curveUseIntervalCheckBox.setChecked(dic['curveUseInterval'])
+                self.autoCurveCountCheckBox.setChecked(dic['autoCurveCount'])
+                self.formatEdit.setText(dic['format'])
+                self.useZPosModeCheckBox.setChecked(dic['useZPosMode'])
+            except:
+                return
+            
+    def closeEvent(self, event):
+        self.exportConfig()
+        event.accept()
 
     def generate(self):
         try:
@@ -811,10 +936,34 @@ class mainWindow(QMainWindow):
         
     def openPreview(self):
         try:
-            config = self.__parseConfig()
+            (
+                svgRaw,
+                _,
+                _,
+                offset,
+                _,
+                scale,
+                scaleFirst,
+                curveCount,
+                curveInterval,
+                curveUseInterval,
+                autoCurveCount,
+                format_,
+                _
+            ) = self.__parseConfig()
             # self.messageBox(config[-1], None)
-            ndigits = int(config[-1][1:])
-            lines = svgPath2Lines(config[0], *config[2:-1], ndigits)
+            ndigits = int(format_[1:])
+            lines = svgPath2Lines(
+                svgRaw,
+                offset,
+                scale,
+                scaleFirst,
+                curveCount,
+                curveInterval,
+                curveUseInterval,
+                autoCurveCount,
+                ndigits
+            )
             self.previewWin = previewWindow(lines)
             self.previewWin.show()
 
