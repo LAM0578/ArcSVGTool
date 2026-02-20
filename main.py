@@ -253,6 +253,7 @@ def autoSetLanguage():
     language = locale.getlocale()[0]
     if language != _LANG_ZH_HANS:
         LANG = _LANG_EN
+        return
     LANG = language
 
 def applyBlur(window):
